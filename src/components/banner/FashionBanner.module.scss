@@ -1,0 +1,213 @@
+/* ----------------------------------------
+   Fashion Banner — Premium Typography + Responsive
+---------------------------------------- */
+
+/* import fonts once (module-safe) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
+
+/* base container */
+.wrap { position: relative; z-index: 1; font-family: 'Inter', sans-serif; }
+.swiper { position: relative; }
+
+/* slide */
+.slide {
+  position: relative;
+  min-height: clamp(68vh, 88vh, 92vh);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+/* media */
+.bg { position: absolute; inset: 0; }
+
+.bgMedia {
+  /* —— changed: force video to cover without side gaps —— */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  min-width: 100%;
+  min-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: cover;
+  object-position: center;
+  transform: translate(-50%, -50%) scale(1.06); /* tiny safety zoom */
+  animation: none; /* disable prior zoom animation to avoid transform conflict */
+}
+
+.bgImg   { filter: brightness(.82) saturate(.95) contrast(1.05); }
+.bgVideo { filter: brightness(.82) saturate(.95) contrast(1.05); background: #000; }
+
+/* keep original keyframes (unused by bgMedia now) */
+@keyframes heroZoom { from { transform: scale(1.02); } to { transform: scale(1.08); } }
+
+/* overlays */
+.scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.34) 55%, rgba(0,0,0,.30) 100%);
+}
+.vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(140% 95% at 50% 10%, rgba(0,0,0,.22) 0%, rgba(0,0,0,0) 46%),
+    radial-gradient(100% 100% at 100% 100%, rgba(0,0,0,.20) 0%, rgba(0,0,0,0) 52%),
+    radial-gradient(100% 100% at 0% 100%, rgba(0,0,0,.18) 0%, rgba(0,0,0,0) 50%);
+  mix-blend-mode: multiply; opacity: .55;
+}
+
+/* center */
+.center {
+  position: relative; z-index: 2;
+  width: min(92vw, 1100px);
+  text-align: center;
+  padding: clamp(0.75rem, 2vw, 2rem);
+  color: #fff;
+}
+
+/* eyebrow */
+.eyebrow {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .78rem; font-weight: 600;
+  letter-spacing: .25em; text-transform: uppercase;
+  color: rgba(255,255,255,.95);
+  padding: .38rem .9rem; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.25);
+  background: rgba(255,255,255,.1);
+  backdrop-filter: blur(8px);
+  margin-bottom: .9rem;
+  text-shadow: 0 2px 6px rgba(0,0,0,.35);
+}
+
+/* title */
+.title {
+  margin: 0 0 .6rem;
+  font-family: 'Playfair Display', serif;
+  font-weight: 800; line-height: 1.08;
+  font-size: clamp(2.2rem, 6.8vw, 4.8rem);
+  letter-spacing: -.01em; color: #fff;
+  text-shadow: 0 4px 25px rgba(0,0,0,.45);
+  position: relative;
+}
+.title::after {
+  content: ''; display: block;
+  width: 110px; height: 4px;
+  margin: .6rem auto 0; border-radius: 999px;
+  background: linear-gradient(90deg, #ffffff 0%, #2C4C97 100%);
+  box-shadow: 0 6px 16px rgba(0,0,0,.3);
+}
+
+/* subtitle */
+.subtitle {
+  margin: 0 auto 1.2rem;
+  max-width: 58rem;
+  font-weight: 500;
+  font-size: clamp(.95rem, 2.3vw, 1.2rem);
+  line-height: 1.6;
+  color: rgba(255,255,255,.96);
+  text-shadow: 0 2px 12px rgba(0,0,0,.45);
+}
+
+/* actions */
+.actions { display: flex; justify-content: center; gap: .6rem; }
+
+/* CTA */
+.cta {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: .9rem 1.6rem;
+  font-weight: 700; font-size: clamp(.92rem, 1.8vw, 1rem);
+  letter-spacing: .02em;
+  background: #fff; color: #0b1324;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.7);
+  box-shadow: 0 12px 34px rgba(0,0,0,.3);
+  transition: transform .22s ease, box-shadow .22s ease, background-color .22s ease, color .22s ease, border-color .22s ease;
+  position: relative; overflow: hidden;
+}
+.cta::before {
+  content: ''; position: absolute; top: 0; left: -75%;
+  width: 50%; height: 100%;
+  background: linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.5) 50%, rgba(255,255,255,0) 100%);
+  transform: skewX(-20deg); transition: left .6s ease;
+}
+.cta:hover::before { left: 130%; }
+.cta:hover {
+  background: #2C4C97; color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px rgba(0,0,0,.36);
+  border-color: rgba(44,76,151,.8);
+}
+.cta:active { transform: translateY(0); box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+
+/* dots */
+.dots {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: clamp(12px, 2.4vw, 20px); z-index: 20;
+  display: flex; gap: 10px; height: 14px; align-items: center;
+}
+.dots :global(.swiper-pagination-bullet) {
+  width: 9px; height: 9px; border-radius: 999px;
+  background: rgba(255,255,255,.6); opacity: 1;
+  border: 1px solid rgba(0,0,0,.15);
+  transition: transform .18s ease, background-color .18s ease, box-shadow .18s ease;
+}
+.dots :global(.swiper-pagination-bullet:hover) { transform: translateY(-1px) scale(1.15); }
+.dots :global(.swiper-pagination-bullet-active) {
+  background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.28), 0 0 0 3px rgba(255,255,255,.22) inset;
+  transform: scale(1.22);
+}
+
+/* ===================== BREAKPOINTS ===================== */
+
+/* Small phones (≤360px) */
+@media (max-width: 360px) {
+  .slide { min-height: 78vh; }
+  .eyebrow { font-size: .7rem; padding: .32rem .7rem; letter-spacing: .22em; margin-bottom: .7rem; }
+  .title { font-size: 2rem; line-height: 1.1; }
+  .title::after { width: 84px; height: 3px; margin-top: .5rem; }
+  .subtitle { font-size: .92rem; margin-bottom: 1rem; padding: 0 .25rem; }
+  .cta { padding: .75rem 1.2rem; font-size: .9rem; }
+}
+
+/* Phones (361–480px) */
+@media (min-width: 361px) and (max-width: 480px) {
+  .slide { min-height: 78vh; }
+  .eyebrow { font-size: .74rem; }
+  .title { font-size: clamp(2.2rem, 8vw, 2.6rem); }
+  .subtitle { font-size: .98rem; }
+  .cta { padding: .82rem 1.4rem; }
+}
+
+/* Phablets / Small tablets (481–768px) */
+@media (min-width: 481px) and (max-width: 768px) {
+  .slide { min-height: 82vh; }
+  .eyebrow { font-size: .76rem; }
+  .title { font-size: clamp(2.4rem, 7.2vw, 3.2rem); }
+  .subtitle { font-size: 1.02rem; max-width: 44rem; }
+  .cta { padding: .9rem 1.6rem; font-size: .98rem; }
+}
+
+/* Tablets (769–1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .slide { min-height: 86vh; }
+  .title { font-size: clamp(3rem, 6.2vw, 3.8rem); }
+  .subtitle { font-size: 1.08rem; }
+}
+
+/* Desktops (1025–1440px) — defaults already look great */
+@media (min-width: 1025px) and (max-width: 1440px) {
+  .title { font-size: clamp(3.6rem, 5.8vw, 4.6rem); }
+}
+
+/* Ultra-wide screens (≥1441px) — prevent oversized type */
+@media (min-width: 1441px) {
+  .center { width: min(88vw, 1200px); }
+  .title  { font-size: 4.6rem; }
+  .subtitle { font-size: 1.18rem; }
+}
+
+/* Accessibility: reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .bgMedia { animation: none !important; transform: translate(-50%, -50%) scale(1.06) !important; }
+  .cta, .dots :global(.swiper-pagination-bullet), .cta::before { transition: none !important; }
+}

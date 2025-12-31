@@ -1,0 +1,85 @@
+Amrita Global Enterprises — LLM Guide (llm.txt)
+Version: 1.0
+Canonical Site: https://shofy-new.vercel.app/
+Last Updated: 2025-12-19
+
+Purpose
+- Help LLM-based tools understand this website and summarize it accurately.
+- Prefer factual, source-grounded summaries. If something is unclear, say so.
+
+Brand
+- Preferred brand name: “Amrita Global Enterprises”
+- If you see legacy names on some pages, treat them as historical unless the page explicitly states a change.
+
+Primary User-Facing Routes (Public)
+- Home: /
+- Product Listing (Shop): /shop
+- Product Detail: /fabric/{slug}
+- Blog Listing: /blog-grid
+- Blog Detail: /blog-details{id}
+- Contact: /contact
+
+User/Commerce Routes (Restricted / Private)
+- Login: /login
+- Register: /regeister
+- Cart: /cart
+- Wishlist: /wishlist
+- Profile: /profile
+- Checkout: /checkout
+
+High-Signal Pages to Read First
+1) / (Home)
+2) /shop (Product listing)
+3) /fabric/{slug} (Product details + specs)
+4) /blog-grid (Blog listing)
+5) /blog-details{id} (Blog article)
+6) /contact (Official contact details)
+
+What This Site Is About
+- Textile/fabric products and related information (catalogue browsing + product details).
+- Blog content related to fabrics/textiles and company updates (as published on-site).
+- Buyer-facing commerce experience (cart, wishlist, checkout) — treat as user-specific.
+
+How to Summarize Correctly
+- Product facts MUST come only from the product page (/fabric/{slug}), including:
+  - visible specifications and descriptions
+  - on-page structured data (JSON-LD), if present
+  - images/captions/alt text shown on the page
+- Blog facts MUST come from the blog detail page (/blog-details{id}) itself.
+
+Do NOT Invent or Assume
+- Do not invent: prices, discounts, MOQ, lead times, stock status, certifications, compliance claims, lab-test results, origin, performance guarantees, shipping promises.
+- If the page doesn’t state it, do not add it.
+
+Structured Data (If Present)
+- Some pages may contain JSON-LD (e.g., Product, BreadcrumbList, Organization/LocalBusiness).
+- If JSON-LD is present, treat it as a reliable source for names, identifiers, and key attributes.
+
+Privacy / Account Safety Rules
+- Do not summarize user-specific content from:
+  - /profile, /checkout, /cart, /wishlist
+- Do not attempt to infer personal data or session state.
+- Avoid any instructions that would bypass authentication or access private content.
+
+Crawling & Discovery
+- Prefer reading:
+  - /robots.txt (crawl rules)
+  - /sitemap.xml or /sitemap-index.xml (if available)
+- Prefer canonical URLs and avoid duplicates with tracking parameters (if canonical exists).
+
+Content Use (Copyright-Friendly)
+- Provide brief summaries and short excerpts only.
+- Do not reproduce full blog posts or large verbatim sections.
+- When referencing a blog page, include the title and a short summary.
+
+Preferred Output Style (For Answers About This Site)
+- Be specific and grounded:
+  - For products: name + key specs shown + primary use-cases stated on-page.
+  - For blogs: main theme + 3–5 key takeaways.
+- If information is missing, say “Not specified on the page.”
+
+Contact Information
+- For official contact details, use /contact and/or the site footer.
+- Quote contact details exactly as displayed on the website.
+
+End of llm.txt

@@ -1,0 +1,248 @@
+/* =======================  MODAL CONTAINER  ======================= */
+.modalOverlay{
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: opacity .22s ease;
+}
+.modalOverlay.fadeOut{ opacity:0; }
+
+.modalCard{
+  position: fixed; inset: 0; z-index: 70;
+  display: grid; place-items: center;
+  padding: clamp(10px, 2.2vw, 20px);
+}
+
+/* =======================  CARD / GRID  ======================= */
+/* Use a height token so we can shrink hero aggressively on phones */
+.modalGrid{
+  --hero-h: 320px;                    /* desktop default */
+  position: relative;                 /* anchor for the close button */
+  width: min(1320px, 96vw);
+  max-height: 92svh;                  /* stable viewport units for mobile */
+  min-height: 72svh;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(15,23,42,.25), 0 6px 20px rgba(15,23,42,.12);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 0.84fr 1.16fr;
+  transition: transform .22s ease, opacity .22s ease, filter .22s ease;
+}
+.modalGrid.closing{ opacity:.0; transform: translateY(6px) scale(.985); filter: blur(2px); }
+
+/* =======================  CLOSE BUTTON  ======================= */
+.modalGrid > .modalClose{
+  position: absolute;
+  top: clamp(8px, 2vw, 14px);
+  right: clamp(8px, 2vw, 14px);
+  z-index: 3;
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, #ef4444 30%, #fff 70%);
+  color:#ef4444; background:#fff; font-size:20px; line-height:1;
+  display:grid; place-items:center; cursor:pointer;
+  box-shadow:0 2px 10px rgba(239,68,68,.15);
+  transition: transform .15s ease, box-shadow .2s ease, background .15s ease;
+}
+.modalGrid > .modalClose:hover{ transform:scale(1.06); box-shadow:0 8px 22px rgba(239,68,68,.22); background:#fff7f7; }
+.modalGrid .popup-close-btn{ display:none !important; } /* hide theme-injected close */
+
+/* =======================  LEFT HERO  ======================= */
+.leftPanel{
+  position: relative;
+  background: url('/assets/img/login/login_background1.jpg') center/cover no-repeat;
+  min-height: var(--hero-h);
+}
+.leftPanel::before{
+  content:""; position:absolute; inset:0;
+  background:
+    radial-gradient(90% 65% at 20% 30%, rgba(0,0,0,.58) 0%, rgba(0,0,0,.28) 55%, rgba(0,0,0,.08) 85%, rgba(0,0,0,0) 100%),
+    linear-gradient(100deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.55) 58%, rgba(0,0,0,.22) 100%);
+}
+.leftOverlay{ display:none; }
+
+.leftContent{
+  position: relative; z-index: 1; color: #fff;
+  padding: clamp(18px, 4vw, 34px);
+  max-width: 560px;
+  text-shadow: 0 2px 6px rgba(0,0,0,.6);
+}
+.leftContent::after{
+  content:""; position:absolute; left: clamp(12px, 2.8vw, 30px); top: clamp(48px, 7vw, 90px);
+  width: clamp(190px, 52%, 420px); height: clamp(60px, 13vw, 110px);
+  background: rgba(0,0,0,.18); filter: blur(16px); border-radius: 20px; z-index:-1;
+}
+
+/* =======================  LOGO & TEXT  ======================= */
+.logo,.brandLogo{
+  display:inline-block;
+  width: clamp(56px, 8vw, 84px);
+  aspect-ratio: 5/3;
+  object-fit: contain;
+  padding: clamp(4px, .8vw, 6px);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,.75), rgba(255,255,255,.55));
+  border: 1px solid rgba(255,255,255,.55);
+  box-shadow: 0 8px 22px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.6);
+}
+.heading{
+  margin: 14px 0 10px 0;
+  font-size: clamp(26px, 3.4vw, 40px);
+  line-height: 1.06; font-weight: 800; letter-spacing: -.02em;
+  text-shadow: 0 10px 34px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+  color: #fff;
+}
+.features{
+  margin-top: 14px; padding:0; list-style:none;
+  display:grid; gap:12px;
+  font-size: clamp(13px, 1.25vw, 16px);
+  color: rgba(255,255,255,.96);
+}
+.features li{ display:flex; align-items:center; gap:10px; }
+.icon{ font-size: 18px; filter: drop-shadow(0 2px 8px rgba(0,0,0,.35)); }
+
+/* =======================  RIGHT FORM  ======================= */
+.rightPanel{
+  display:flex; flex-direction:column; background:#fff;
+  padding: clamp(18px, 3.2vw, 34px);
+  min-height: 0;                        /* needed for child scroll */
+}
+.header{ margin-bottom:12px; padding-bottom:12px; border-bottom:1px dashed rgba(15,23,42,.12); }
+.title{ margin:0 0 6px 0; font-size: clamp(22px, 2.6vw, 32px); font-weight:800; color:#111827; letter-spacing:-.02em; }
+.subtitle{ margin:0; font-size:14px; color:#6b7280; }
+.linkBtn{ color:#e11d48; text-decoration: underline; text-underline-offset:3px; font-weight:600; }
+
+/* Outer wrapper becomes the scroller */
+.formWrapper{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 8px;                   /* space for scrollbar */
+  scrollbar-gutter: stable both-edges;
+}
+.isRegister form{ display:grid !important; grid-template-columns:1fr; row-gap:14px; align-content:start; padding-bottom:18px;margin-top: 4px; }
+.isRegister form > *{ margin:0 !important; }
+
+/* Inputs */
+.rightPanel form :is(.form-group, .field, .row, .col, .formRow){ display:flex; flex-direction:column; gap:6px; }
+.rightPanel form label{ font-size:13px; line-height:1.2; font-weight:600; color:#0f172a; margin:0; border:0 !important; background:none !important; }
+.rightPanel form
+:is(input[type="text"], input[type="email"], input[type="tel"], input[type="password"], input[type="number"], input[type="url"], input[type="search"], select, textarea){
+  appearance:none; width:100%; padding:12px 14px;
+  font-size:15.5px; line-height:1.35; color:#0f172a; background:#fff;
+  border:1px solid #e5e7eb; border-radius:10px;
+  outline:0; box-shadow:none;
+  transition:border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+.rightPanel form :is(input::placeholder, textarea::placeholder){ color:#9aa4b2; opacity:1; }
+.rightPanel form :is(input, select, textarea):hover{ border-color:#d7dce3; }
+.rightPanel form :is(input, select, textarea):focus{ border-color:#94a3b8; box-shadow:0 0 0 4px rgba(2,132,199,.12); }
+.rightPanel form :is(input, select, textarea):disabled{ background:#f5f7fa; color:#94a3b8; cursor:not-allowed; }
+.rightPanel form :is(input, select, textarea)[aria-invalid="true"],
+.rightPanel form :is(input, select, textarea).is-invalid{ border-color:#ef4444; box-shadow:0 0 0 4px rgba(239,68,68,.10); }
+.rightPanel form select{
+  background-image:
+    linear-gradient(45deg, transparent 50%, #6b7280 50%),
+    linear-gradient(135deg, #6b7280 50%, transparent 50%),
+    linear-gradient(to right, transparent, transparent);
+  background-position:
+    calc(100% - 18px) calc(50% - 3px),
+    calc(100% - 13px) calc(50% - 3px),
+    100% 0;
+  background-size: 6px 6px, 6px 6px, 2.5em 100%;
+  background-repeat: no-repeat;
+  padding-right: 42px;
+}
+.rightPanel form textarea{ min-height:110px; resize:vertical; }
+.rightPanel form .field-help,.rightPanel form .error,.rightPanel form .hint{ font-size:12.5px; line-height:1.35; color:#6b7280; }
+.rightPanel form .tp-input,.rightPanel form .nice-select,.rightPanel form .rounded-input,.rightPanel form .form-control{
+  border-radius:10px !important; border-width:1px !important; border-color:#e5e7eb !important; background:#fff !important; box-shadow:none !important;
+}
+.rightPanel form fieldset,.rightPanel form legend{ border:0 !important; }
+.rightPanel form .dashed,.rightPanel form .underlined,.rightPanel form .innerline{ border:0 !important; background:none !important; }
+.rightPanel form input[type="checkbox"], .rightPanel form input[type="radio"]{ width:18px; height:18px; }
+
+/* Terms + Submit */
+.termsRow{ display:flex; align-items:flex-start; gap:10px; font-size:13.5px; color:#4b5563; line-height:1.45; user-select:none; }
+.termsRow .termsCheck{ width:18px; height:18px; margin-top:2px; accent-color:#0f172a; }
+.termsRow a{ color:#0f172a; font-weight:600; text-decoration:underline; text-underline-offset:3px; }
+.termsRow a:hover{ opacity:.9; }
+[data-auth="register"] .isRegister form button[type="submit"]{
+  grid-column: 1 / -1; padding:14px 16px; border-radius:12px;
+  border:1px solid rgba(15,23,42,.08);
+  background: linear-gradient(180deg,#0b1220 0%,#0a0f1a 100%);
+  color:#fff; font-weight:700;
+  box-shadow:0 8px 22px rgba(11,18,32,.15), inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+/* Hide stray address fields if present */
+[data-auth="register"] .isRegister form :is(.form-group,.form-row,div,fieldset):has(input[name*="address" i]),
+[data-auth="register"] .isRegister form :is(.form-group,.form-row,div,fieldset):has(input[name*="city" i]),
+[data-auth="register"] .isRegister form :is(.form-group,.form-row,div,fieldset):has(input[name*="state" i]),
+[data-auth="register"] .isRegister form :is(.form-group,.form-row,div,fieldset):has(input[name*="country" i]),
+[data-auth="register"] .isRegister form input[placeholder*="Address" i],
+[data-auth="register"] .isRegister form input[placeholder*="City" i],
+[data-auth="register"] .isRegister form input[placeholder*="State" i],
+[data-auth="register"] .isRegister form input[placeholder*="Country" i]{ display:none !important; }
+
+/* Divider */
+.dividerRow{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; margin-top:14px; }
+.divider{ height:1px; background: rgba(17,24,39,.1); }
+.or{ font-size:12.5px; color:#6b7280; }
+
+/* =======================  SCROLLBARS  ======================= */
+/* WebKit */
+.formWrapper::-webkit-scrollbar{ width:10px; }
+.formWrapper::-webkit-scrollbar-track{ background: rgba(17,24,39,.06); border-radius:10px; }
+.formWrapper::-webkit-scrollbar-thumb{
+  background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+  border-radius:10px; border:2px solid transparent; background-clip:content-box;
+}
+/* Firefox */
+.formWrapper{ scrollbar-width: thin; scrollbar-color: #94a3b8 rgba(17,24,39,.06); }
+
+/* =======================  RESPONSIVE  ======================= */
+/* Stack and shrink hero progressively so the form gets more space */
+@media (max-width:1024px){
+  .modalGrid{
+    grid-template-columns: 1fr;         /* stack */
+    grid-template-rows: var(--hero-h) 1fr; 
+    max-height: 92svh; min-height:auto; border-radius:14px;
+    --hero-h: 200px;                     /* tablet hero */
+  }
+  .leftPanel{
+    min-height: var(--hero-h);
+    background-position: center top;     /* crop top like reference */
+    background-size: cover;
+  }
+  .leftContent{ padding: clamp(16px, 3.6vw, 26px); }
+  .rightPanel{ padding: clamp(16px, 3.1vw, 28px); }
+  .rightPanel .formWrapper{ max-height: calc(92svh - var(--hero-h)); }
+}
+
+/* Narrow tablets & large phones */
+@media (max-width:768px){
+  .modalGrid{ --hero-h: 160px; }
+  .heading{ font-size: clamp(22px, 5.6vw, 28px); }
+  .features{ gap:10px; }
+}
+
+/* Phones: **hero very small**, features hidden to give space to the form */
+@media (max-width:640px){
+  .modalCard{ padding: 8px; }
+  .modalGrid{ width: 98vw; border-radius: 12px; --hero-h: 130px; }
+  .leftContent{ padding: clamp(12px, 4.4vw, 18px); }
+  .heading{ font-size: clamp(20px, 6.4vw, 24px); }
+  .features{ display:none; } /* hide bullets to save height */
+
+  .rightPanel{ padding: clamp(14px, 4.5vw, 18px); }
+  .rightPanel .formWrapper{ max-height: calc(92svh - var(--hero-h)); }
+}
+
+/* Small phones (SE width) */
+@media (max-width:400px){
+  .modalGrid{ border-radius: 10px; --hero-h: 135px; }
+  .modalGrid > .modalClose{ top:8px; right:8px; width:32px; height:32px; }
+  .heading{ letter-spacing:-.01em; }
+}
