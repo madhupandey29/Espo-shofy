@@ -1,8 +1,8 @@
 // hooks/useGlobalSearch.ts
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { usePathname } from 'next/navigation';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { publishSearchQuery, subscribeSearch, getLatestQuery } from '@/utils/searchHub';
 
 function useDebounced<T>(value: T, delay = 250) {
@@ -15,35 +15,65 @@ function useDebounced<T>(value: T, delay = 250) {
 }
 
 export default function useGlobalSearch(debounceMs = 250) {
-  // seed with whatever the hub last held (SSR-safe: called on client)
-  const [query, setQuery] = useState<string>(getLatestQuery() || '');
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // seed with hub value (client safe)
+  const [query, setQuery] = useState<string>(() => getLatestQuery() || '');
   const debounced = useDebounced(query, debounceMs);
 
-  // reflect external publishers (e.g., another component typing)
+  // avoid publish loops
+  const lastPublishedRef = useRef<string>('');
+
+  // reflect external publishers
   useEffect(() => {
-    const unsubscribe = subscribeSearch(setQuery);
+    const unsubscribe = subscribeSearch((v: string) => {
+      setQuery((prev) => (prev === v ? prev : v));
+    });
     return () => {
-      try { unsubscribe?.(); } catch(err) { console.log("Error",err)}
+      try { unsubscribe?.(); } catch {}
     };
   }, []);
 
+  // ✅ if on /shop, sync input from URL (?q= / ?searchText=)
+  useEffect(() => {
+    if (!pathname?.includes('/shop')) return;
+
+    const urlQ = (searchParams?.get('q') || searchParams?.get('searchText') || '').trim();
+
+    setQuery((prev) => (prev === urlQ ? prev : urlQ));
+
+    // publish immediately so other listeners (shop page) are aligned
+    if (lastPublishedRef.current !== urlQ) {
+      lastPublishedRef.current = urlQ;
+      publishSearchQuery(urlQ);
+    }
+  }, [pathname, searchParams]);
+
   // publish when debounced changes
   useEffect(() => {
-    publishSearchQuery(debounced ?? '');
+    const q = (debounced ?? '').toString();
+    if (lastPublishedRef.current === q) return;
+    lastPublishedRef.current = q;
+    publishSearchQuery(q);
   }, [debounced]);
 
-  // ✅ auto-reset on route change
-  const pathname = usePathname();
+  // ✅ auto-reset when leaving shop
   useEffect(() => {
-    // clear local state
-    setQuery('');
-    // notify everyone else listening to the hub
-    publishSearchQuery('');
+    if (!pathname) return;
+
+    if (!pathname.includes('/shop')) {
+      setQuery('');
+      if (lastPublishedRef.current !== '') {
+        lastPublishedRef.current = '';
+        publishSearchQuery('');
+      }
+    }
   }, [pathname]);
 
-  // Optional: allow manual resets from callers
   const reset = useCallback(() => {
     setQuery('');
+    lastPublishedRef.current = '';
     publishSearchQuery('');
   }, []);
 

@@ -76,6 +76,12 @@ export default function SearchArea() {
 
   // Sorting and rendering logic
   let product_items = products?.data || [];
+  
+  // Handle search results from new API structure
+  if (searchText && !isNumeric && searchResults?.success && Array.isArray(searchResults?.data)) {
+    product_items = searchResults.data;
+  }
+  
   if (searchText && productType) {
     product_items = product_items.filter(
       (prd) => prd.newCategoryId?.name?.toLowerCase() === productType.toLowerCase()

@@ -4,10 +4,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { handleFilterSidebarClose } from '@/redux/features/shop-filter-slice';
 import ResetButton from '../shop/shop-filter/reset-button';
-import ShopSidebarFilters, {
-  FilterOnly as MobileFilterFlyout,
-  FILTERS_MAP,
-} from '../shop/ShopSidebarFilters';
+import EnhancedShopSidebarFilters, {
+  FIELD_FILTERS_MAP as FILTERS_MAP,
+} from '../shop/EnhancedShopSidebarFilters';
+import { FilterOnly } from '../shop/FilterOnly';
 
 const KEYCODES = { ESC: 27 };
 
@@ -285,7 +285,7 @@ const ShopFilterOffCanvas = ({ all_products, otherProps, right_side = false }) =
           {/* Body */}
           <div style={styles.content}>
             {singleKey ? (
-              <MobileFilterFlyout
+              <FilterOnly
                 filter={FILTERS_MAP[singleKey]}
                 selected={selectedFilters}
                 onApply={(nextSelected) => {
@@ -293,7 +293,6 @@ const ShopFilterOffCanvas = ({ all_products, otherProps, right_side = false }) =
                   setSingleKey(null);
                 }}
                 onCancel={() => setSingleKey(null)}
-                portalTarget={wrapperRef.current}
               />
             ) : (
               <>
@@ -304,7 +303,7 @@ const ShopFilterOffCanvas = ({ all_products, otherProps, right_side = false }) =
                   }}
                 >
                   <div style={styles.filterSection}>
-                    <ShopSidebarFilters
+                    <EnhancedShopSidebarFilters
                       selected={selectedFilters}
                       onFilterChange={applyAndClose}
                       mobile

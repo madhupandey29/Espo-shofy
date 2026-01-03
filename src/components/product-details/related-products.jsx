@@ -6,9 +6,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 import {
-  useGetGroupCodeProductsQuery,
+  useGetProductsByCollectionQuery,
   useGetTopRatedQuery,
 } from '@/redux/features/newProductApi';
+import { mapProductFields, getProductId, getCategoryName, getPrimaryImageUrl } from '@/utils/productFieldMapper';
 import ErrorMsg from '../common/error-msg';
 import { HomeNewArrivalPrdLoader } from '../loader';
 
@@ -16,28 +17,27 @@ import { HomeNewArrivalPrdLoader } from '../loader';
 const normalizeRelationToProduct = (rel) => {
   if (!rel) return null;
 
+  // Use the field mapper to handle both old and new API structures
+  const mapped = mapProductFields(rel);
+  if (!mapped) return null;
+
+  // Handle nested product structure if it exists
   if (rel.product && typeof rel.product === 'object') {
-    const merged = { ...rel, ...rel.product };
-    merged._id = rel.product._id || rel._id;
-    merged.slug = rel.product.slug || rel.slug;
-
-    if (rel.product.category && typeof rel.product.category === 'object') {
-      merged.category = rel.product.category;
-    } else if (typeof rel.product.category === 'string') {
-      merged.category = { _id: rel.product.category, name: '' };
-    }
-
+    const productMapped = mapProductFields(rel.product);
+    const merged = { ...mapped, ...productMapped };
+    
+    // Preserve important fields from the relation level
+    merged.id = getProductId(rel.product) || getProductId(rel);
+    merged.slug = rel.product.slug || rel.slug || mapped.slug;
+    merged.category = getCategoryName(rel.product) || getCategoryName(rel);
+    
     if (rel.salesPrice != null && merged.salesPrice == null) merged.salesPrice = rel.salesPrice;
     if (rel.price != null && merged.price == null) merged.price = rel.price;
 
     return merged;
   }
 
-  return {
-    ...rel,
-    _id: rel.product || rel._id,
-    category: rel.category ? { _id: rel.category, name: '' } : undefined,
-  };
+  return mapped;
 };
 
 const FALLBACK_IMG =
@@ -58,17 +58,17 @@ const processImageUrl = (url) => {
   return `${cleanBaseUrl}/uploads/${encodedPath}`;
 };
 
-const RelatedProducts = ({ groupcodeId }) => {
-  const shouldSkip = !groupcodeId || String(groupcodeId).trim() === '';
+const RelatedProducts = ({ collectionId }) => {
+  const shouldSkip = !collectionId || String(collectionId).trim() === '';
 
-  // 1) Try related-by-groupcode (if we have a groupcode)
+  // 1) Try related-by-collection (if we have a collection)
   const {
     data: relData,
     isError: relError,
     isLoading: relLoading,
     isFetching: relFetching,
     isSuccess: relSuccess,
-  } = useGetGroupCodeProductsQuery(shouldSkip ? '' : groupcodeId, { skip: shouldSkip });
+  } = useGetProductsByCollectionQuery(shouldSkip ? '' : collectionId, { skip: shouldSkip });
 
   const relList = (relData?.data ?? []).map(normalizeRelationToProduct).filter(Boolean);
   const relDone = !relLoading && !relFetching;
@@ -100,13 +100,11 @@ const RelatedProducts = ({ groupcodeId }) => {
         {list.map((p) => {
           const href = p?.slug ? `/fabric/${p.slug}` : '#';
 
-          const rawImg =
-            p?.img || p?.image || p?.image1 || p?.imageURLs?.[0]?.url || FALLBACK_IMG;
-
-          const imgSrc = processImageUrl(rawImg);
+          // Use the field mapper to get the primary image
+          const imgSrc = processImageUrl(p?.primaryImage || getPrimaryImageUrl(p._original) || FALLBACK_IMG);
 
           return (
-            <div key={p._id} className="col-6 col-sm-4 col-md-3 col-lg-2">
+            <div key={p.id || p._id} className="col-6 col-sm-4 col-md-3 col-lg-2">
               <Link href={href} target="_blank" rel="noopener noreferrer" className="card-mini">
                 <div className="thumb">
                   {/* ✅ FIX: use width+height (no fill) so SEO tools won’t show “HTML - x -” */}

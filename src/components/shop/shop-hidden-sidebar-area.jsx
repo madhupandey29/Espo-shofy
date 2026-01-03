@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 // Pagination removed for Load More behavior
 import ProductItem      from '../products/fashion/product-item';
 import ShopTopLeft      from './shop-top-left';
-import ShopTopRight     from './shop-top-right';
 
 const ShopHiddenSidebarArea = ({
   all_products = [],
@@ -37,7 +36,37 @@ const ShopHiddenSidebarArea = ({
                 />
               </div>
               <div className="col-xl-6">
-                <ShopTopRight selectHandleFilter={selectHandleFilter} />
+                <div className="shopTopRight" role="region" aria-label="Sort toolbar">
+                  {/* Sort */}
+                  <div className="shopSort d-none d-lg-block">
+                    <select onChange={selectHandleFilter} aria-label="Sort products">
+                      <option value="default">Sort: Recommended</option>
+                      <option value="new">What's New</option>
+                      <option value="priceLow">Price: Low to High</option>
+                      <option value="priceHigh">Price: High to Low</option>
+                      <option value="nameAsc">Name: A to Z</option>
+                    </select>
+                  </div>
+
+                  <style dangerouslySetInnerHTML={{__html: `
+                    .shopTopRight{
+                      display:flex;
+                      align-items:center;
+                      justify-content:flex-end;
+                      gap:12px;
+                    }
+                    .shopSort select{
+                      height:44px;
+                      border:1px solid var(--tp-grey-2);
+                      border-radius:10px;
+                      padding:0 12px;
+                      background:var(--tp-common-white);
+                      font: 600 13px/1 var(--tp-ff-roboto);
+                      color:var(--tp-text-1);
+                      cursor:pointer;
+                    }
+                  `}} />
+                </div>
               </div>
             </div>
           </div>

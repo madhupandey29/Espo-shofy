@@ -17,8 +17,6 @@ import { useGetSingleProductQuery }  from '@/redux/features/productApi';
 // ✅ FAQ API
 import { useGetAllFaqAQuery } from '@/redux/features/faqaApi';
 
-
-
 /* ───── helpers ───── */
 const nonEmpty = (v) => {
   if (Array.isArray(v)) return v.length > 0;
@@ -57,7 +55,7 @@ function ValuePill({ value, unit, title }) {
     <span className="value-pill" title={title}>
       <span className="pill-value">{value}</span>
       {unit && <span className="pill-unit">{unit}</span>}
-      
+
       <style jsx>{`
         .value-pill {
           display: inline-flex;
@@ -116,10 +114,10 @@ function renderValue(value) {
       <div className="value-pills-container">
         {value.map((item, i) =>
           typeof item === 'object' && item && ('v' in item || 'unit' in item)
-            ? <ValuePill key={i} value={item.v ?? item.value} unit={item.unit} />
+            ? <ValuePill key={i} value={item.v ?? item.value} unit={item.unit} title={item.title} />
             : <ValuePill key={i} value={item} />
         )}
-        
+
         <style jsx>{`
           .value-pills-container {
             display: flex;
@@ -137,11 +135,11 @@ function renderValue(value) {
       </div>
     );
   }
-  
+
   return (
     <span className="simple-value">
       {String(value)}
-      
+
       <style jsx>{`
         .simple-value {
           font-family: var(--tp-ff-roboto);
@@ -339,9 +337,14 @@ export default function DetailsTabNav({ product = {} }) {
     productdescription,
     price,
     um, currency, quantity,
-    categoryId, structureId, contentId, finishId,
-    designId, motifsizeId, suitableforId,
-    category, substructure, content, design, subfinish, motif,
+    category, categoryId,
+    structure, structureId,
+    content, contentId,
+    finish, finishId,
+    design, designId,
+    motif, motifsizeId, suitableforId,
+    substructure, subfinish,
+    supplyModel,
     slug, _id,
   } = product;
 
@@ -393,13 +396,19 @@ export default function DetailsTabNav({ product = {} }) {
 
   const full = singleById || singleBySlug || {};
 
-  // ✅ FIXED: fullDescription must be AFTER `full` exists
+  // ✅ description (fallback chain)
   const fullDescription = pick(
     product?.fullProductDescription,
     full?.fullProductDescription,
+    product?.description,
+    product?.productdescription,
     description,
     productdescription
   ) || '';
+
+  /* ─── KEYWORDS (Popular Finds) ─── */
+  const keywordList = toNameArray(product?.keywords ?? full?.keywords);
+  const hasKeywords = keywordList.length > 0;
 
   /* ─── COLOR resolve ─── */
   const rawColor = product?.color ?? full?.color;
@@ -445,15 +454,19 @@ export default function DetailsTabNav({ product = {} }) {
   const { data: motifL  } = useGetMotifSizeByIdQuery(motifsizeId, { skip: !motifsizeId });
   const { data: suitL   } = useGetSubsuitableQuery(suitableforId, { skip: !suitableforId });
 
-  const categoryName      = pick(category?.name,      catL?.data?.name);
-  const substructureName  = pick(substructure?.name,  subL?.data?.name);
-  const contentName       = pick(content?.name,       contL?.data?.name);
-  const subfinishName     = pick(subfinish?.name,     finL?.data?.name);
-  const designName        = pick(design?.name,        desL?.data?.name);
-  const motifName         = pick(motif?.name,         motifL?.data?.name, motifL?.data?.size);
+  const categoryName      = pick(category, catL?.data?.name);
+  const substructureName  = pick(structure, subL?.data?.name);
+  const contentName       = pick(
+    Array.isArray(content) ? content.join(', ') : content,
+    contL?.data?.name
+  );
+  const subfinishName     = pick(
+    Array.isArray(finish) ? finish.join(', ') : finish,
+    finL?.data?.name
+  );
+  const designName        = pick(design, desL?.data?.name);
+  const motifName         = pick(motif, motifL?.data?.name, motifL?.data?.size);
   const subsuitableNameFB = pick(suitL?.data?.name);
-
-
 
   /* ---------- WIDTH ---------- */
   const cmSrc   = nonEmpty(product?.cm)   ? product.cm   : (nonEmpty(full?.cm)   ? full.cm   : (nonEmpty(product?.width) ? product.width : undefined));
@@ -465,7 +478,11 @@ export default function DetailsTabNav({ product = {} }) {
   const cmFinal   = Number.isFinite(cmRaw)   ? cmRaw   : (Number.isFinite(inchRaw) ? inchRaw * 2.54 : undefined);
   const inchFinal = Number.isFinite(inchRaw) ? inchRaw : (Number.isFinite(cmRaw)   ? cmRaw / 2.54   : undefined);
 
-  const fmt = (n, d = 2) => (Math.round(n * 10 ** d) / 10 ** d).toString();
+  const fmt = (n, d = 2) => {
+    const num = Number(n);
+    if (!Number.isFinite(num)) return String(n ?? '');
+    return (Math.round(num * 10 ** d) / 10 ** d).toString();
+  };
 
   const widthPills = [
     Number.isFinite(cmFinal)   ? { v: fmt(cmFinal, 0), unit: 'cm' }     : null,
@@ -474,20 +491,26 @@ export default function DetailsTabNav({ product = {} }) {
 
   const widthDisplay = widthPills.length > 0 ? widthPills : 'Not available';
 
-  /* ---------- WEIGHT ---------- */
+  /* ---------- WEIGHT (FIXED rounding + ozs support) ---------- */
+  const gsmVal = pick(product?.gsm, full?.gsm);
+  const ozVal  = pick(product?.ozs, product?.oz, full?.ozs, full?.oz); // ✅ supports ozs from your API
+
   const weightPills = [
-    nonEmpty(product?.gsm ?? full?.gsm) ? { v: (product?.gsm ?? full?.gsm), unit: 'GSM' } : null,
-    nonEmpty(product?.oz  ?? full?.oz ) ? { v: (product?.oz  ?? full?.oz ), unit: 'OZ'  } : null,
+    nonEmpty(gsmVal) ? { v: fmt(gsmVal, 0), unit: 'GSM', title: 'Grams per square meter' } : null,
+    nonEmpty(ozVal)  ? { v: fmt(ozVal, 2),  unit: 'OZ',  title: 'Ounces per square yard' } : null,
   ].filter(Boolean);
 
   const weightDisplay = weightPills.length > 0 ? weightPills : 'Not available';
 
-  /* rows */
+  /* U/M support (your API sometimes uses uM) */
+  const umDisplay = pick(um, product?.uM, full?.uM);
+
+  /* rows for Product Info section */
   const rowsBase = [
     { label: 'Price',          value: money(price) },
     { label: 'Width',          value: widthDisplay },
     { label: 'Weight',         value: weightDisplay },
-    { label: 'U/M',            value: um },
+    { label: 'U/M',            value: umDisplay },
     { label: 'Currency',       value: currency },
     { label: 'Quantity',       value: quantity },
     { label: 'Category',       value: categoryName },
@@ -496,6 +519,7 @@ export default function DetailsTabNav({ product = {} }) {
     { label: 'Sub-finish',     value: subfinishName },
     { label: 'Design',         value: designName },
     { label: 'Motif',          value: motifName },
+    { label: 'Supply Model',   value: supplyModel || full?.supplyModel },
   ].filter((r) => nonEmpty(r.value));
 
   const rows = [
@@ -506,8 +530,6 @@ export default function DetailsTabNav({ product = {} }) {
     { label: 'SKU',          value: skuDisplay },
   ];
 
-  const half = Math.ceil(rows.length / 2);
-
   /* ---------------- FAQ data (product + global) ---------------- */
   const { data: faqaResp } = useGetAllFaqAQuery();
   const globalFaqsRaw = Array.isArray(faqaResp?.data) ? faqaResp.data : [];
@@ -516,8 +538,8 @@ export default function DetailsTabNav({ product = {} }) {
     const src = full && Object.keys(full).length ? full : product;
     const items = [];
     for (let i = 1; i <= 6; i++) {
-      const q = src?.[`productquestion${i}`];
-      const a = src?.[`productanswer${i}`];
+      const q = src?.[`productQ${i}`] || src?.[`productquestion${i}`];
+      const a = src?.[`productA${i}`] || src?.[`productanswer${i}`];
       if (!nonEmpty(q) || !nonEmpty(a)) continue;
 
       const qStr = String(q);
@@ -555,54 +577,80 @@ export default function DetailsTabNav({ product = {} }) {
 
   return (
     <div className="product-details-modern">
-      {/* Main Content Section */}
       <div className="hero-section">
         <div className="container-fluid">
           <div className="row">
-            {/* Left Column: Description + Specifications */}
-            <div className="col-lg-8 col-md-7">
-              <div className="description-panel">
-                {/* Description Section */}
-                <div className="panel-header">
-                  <span className="badge">Product Overview</span>
-                  <h2 className="panel-title">Description</h2>
-                </div>
-                <div className="description-body">
-                  {/<[a-z][\s\S]*>/i.test(fullDescription)
-                    ? <div className="rich-content" dangerouslySetInnerHTML={{ __html: fullDescription }} />
-                    : <p className="simple-content">{fullDescription || 'No description available for this product.'}</p>}
+            {/* Left Column - Takes 8 columns on desktop */}
+            <div className="col-lg-8 col-md-12">
+              <div className="left-grid">
+                {/* Top Left - Description */}
+                <div className="grid-section description-section">
+                  <div className="panel-header">
+                    <span className="badge">Product Overview</span>
+                    <h2 className="panel-title">Description</h2>
+                  </div>
+
+                  <div className="description-body">
+                    {/<[a-z][\s\S]*>/i.test(fullDescription)
+                      ? <div className="rich-content" dangerouslySetInnerHTML={{ __html: fullDescription }} />
+                      : <p className="simple-content">{fullDescription || 'No description available for this product.'}</p>}
+                  </div>
                 </div>
 
-                {/* Specifications Section */}
-                <div className="specs-divider"></div>
-                <div className="specs-header-inline">
-                  <span className="badge">Technical Details</span>
-                  <h3 className="specs-title">Product Specifications</h3>
+                {/* Bottom Left - Product Info */}
+                <div className="grid-section product-info-section">
+                  <div className="panel-header">
+                    <span className="badge">Technical Details</span>
+                    <h2 className="panel-title">Product Specifications</h2>
+                  </div>
+
+                  <div className="specs-table">
+                    {rows.map(({ label, value }) => (
+                      <div key={label} className="spec-row-compact">
+                        <div className="spec-label-compact">{label}</div>
+                        <div className="spec-value-compact">{renderValue(value)}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                
-                <div className="specs-table">
-                  {rows.map(({ label, value }, index) => (
-                    <div key={label} className="spec-row-compact">
-                      <div className="spec-label-compact">{label}</div>
-                      <div className="spec-value-compact">{renderValue(value)}</div>
+              </div>
+            </div>
+
+            {/* Right Column - Takes 4 columns on desktop */}
+            <div className="col-lg-4 col-md-12">
+              <div className="right-grid">
+                {/* Top Right - FAQ */}
+                <div className="grid-section faq-section">
+                  <div className="panel-header">
+                    <span className="badge">Support</span>
+                    <h2 className="panel-title">FAQ</h2>
+                  </div>
+                  
+                  <div className="faq-body">
+                    <FaqBlock items={mergedFaqs} />
+                  </div>
+                </div>
+
+                {/* Bottom Right - Keywords */}
+                {hasKeywords && (
+                  <div className="grid-section keywords-section">
+                    <div className="panel-header">
+                      <span className="badge badge-popular">Popular</span>
+                      <h2 className="panel-title">Popular Search of this Fabric</h2>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="keywords-wrap" aria-label="Popular finds keywords">
+                      {keywordList.slice(0, 24).map((k, idx) => (
+                        <span key={`${k}-${idx}`} className="kw-chip" title={k}>
+                          {k}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            
-            {/* Right Column: FAQ */}
-            <div className="col-lg-4 col-md-5">
-              <div className="faq-panel">
-                <div className="panel-header">
-                  <span className="badge">Support</span>
-                  <h2 className="panel-title">FAQ</h2>
-                </div>
-                <div className="faq-body">
-                  <FaqBlock items={mergedFaqs} />
-                </div>
-              </div>
-            </div>
+
           </div>
         </div>
       </div>
@@ -616,20 +664,45 @@ export default function DetailsTabNav({ product = {} }) {
           padding: 32px 0;
         }
 
-        .hero-section .row {
-          align-items: flex-start;
+        .left-grid, .right-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          height: 100%;
         }
 
-        .description-panel, .faq-panel {
+        .grid-section {
           background: var(--tp-common-white);
           border-radius: 12px;
           padding: 24px;
           box-shadow: 0 2px 8px rgba(15, 34, 53, 0.06);
           border: 1px solid var(--tp-grey-2);
+          transition: all 0.3s ease;
         }
 
-        .faq-panel {
-          height: fit-content;
+        .grid-section:hover {
+          box-shadow: 0 4px 16px rgba(15, 34, 53, 0.1);
+          border-color: var(--tp-theme-primary-light);
+        }
+
+        .description-section {
+          flex: 1;
+          min-height: 300px;
+        }
+
+        .product-info-section {
+          flex: 1;
+          min-height: 400px;
+        }
+
+        .faq-section {
+          flex: 1;
+          min-height: 300px;
+        }
+
+        .keywords-section {
+          flex: 0 0 auto;
+          min-height: auto;
         }
 
         .panel-header {
@@ -649,7 +722,11 @@ export default function DetailsTabNav({ product = {} }) {
           font-family: var(--tp-ff-jost);
         }
 
-        .faq-panel .badge {
+        .faq-section .badge {
+          background: var(--tp-theme-secondary);
+        }
+
+        .badge-popular {
           background: var(--tp-theme-secondary);
         }
 
@@ -661,6 +738,11 @@ export default function DetailsTabNav({ product = {} }) {
           margin: 0;
         }
 
+        .description-body {
+          height: calc(100% - 60px);
+          overflow-y: auto;
+        }
+
         .rich-content, .simple-content {
           font-family: var(--tp-ff-roboto);
           font-size: 15px;
@@ -669,31 +751,14 @@ export default function DetailsTabNav({ product = {} }) {
           margin: 0;
         }
 
-        .specs-divider {
-          height: 1px;
-          background: var(--tp-grey-2);
-          margin: 24px 0 20px 0;
-        }
-
-        .specs-header-inline .badge {
-          background: var(--tp-theme-secondary);
-          margin-bottom: 8px;
-        }
-
-        .specs-title {
-          font-family: var(--tp-ff-jost);
-          font-size: 20px;
-          font-weight: 700;
-          color: var(--tp-text-1);
-          margin: 0 0 16px 0;
-        }
-
         .specs-table {
           border-radius: 8px;
           overflow: hidden;
           border: 1px solid var(--tp-grey-2);
           width: 100%;
           table-layout: auto;
+          height: calc(100% - 60px);
+          overflow-y: auto;
         }
 
         .spec-row-compact {
@@ -717,7 +782,7 @@ export default function DetailsTabNav({ product = {} }) {
           font-size: 14px;
           font-weight: 600;
           color: var(--tp-text-1);
-          min-width: 120px;
+          min-width: 140px;
           flex-shrink: 0;
         }
 
@@ -728,12 +793,62 @@ export default function DetailsTabNav({ product = {} }) {
           flex: 1;
         }
 
+        .faq-body {
+          height: calc(100% - 60px);
+          overflow-y: auto;
+        }
+
+        /* ✅ Keywords chips */
+        .keywords-wrap {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          align-items: center;
+          margin-top: 8px;
+        }
+
+        .kw-chip {
+          display: inline-flex;
+          align-items: center;
+          padding: 8px 12px;
+          border-radius: 999px;
+          border: 1px solid var(--tp-grey-2);
+          background: var(--tp-common-white);
+          font-family: var(--tp-ff-roboto);
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--tp-text-1);
+          line-height: 1;
+          transition: all 0.2s ease;
+        }
+
+        .kw-chip:hover {
+          border-color: var(--tp-theme-primary);
+          box-shadow: 0 2px 10px rgba(44, 76, 151, 0.12);
+          transform: translateY(-1px);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 992px) {
+          .left-grid, .right-grid {
+            gap: 16px;
+          }
+
+          .grid-section {
+            padding: 20px;
+          }
+
+          .spec-label-compact {
+            min-width: 130px;
+          }
+        }
+
         @media (max-width: 768px) {
           .hero-section {
             padding: 24px 0;
           }
 
-          .description-panel, .faq-panel {
+          .grid-section {
             padding: 20px;
             margin-bottom: 16px;
           }
@@ -752,19 +867,37 @@ export default function DetailsTabNav({ product = {} }) {
             min-width: auto;
             margin-bottom: 4px;
             font-size: 13px;
+            width: 100%;
           }
 
           .spec-value-compact {
             font-size: 13px;
+            width: 100%;
           }
 
-          .specs-title {
-            font-size: 18px;
+          .kw-chip {
+            font-size: 12px;
+            padding: 7px 10px;
+          }
+
+          .description-section,
+          .product-info-section,
+          .faq-section {
+            min-height: auto;
+            height: auto;
+          }
+
+          .description-body,
+          .specs-table,
+          .faq-body {
+            height: auto;
+            max-height: 300px;
+            overflow-y: auto;
           }
         }
 
         @media (max-width: 480px) {
-          .description-panel, .faq-panel {
+          .grid-section {
             padding: 16px;
           }
 

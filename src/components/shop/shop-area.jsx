@@ -27,7 +27,7 @@ const PROPERTY_MAP = Object.freeze({
   design:   'design',
   structure:'substructure',
   finish:   'subfinish',
-  groupcode:'groupcode',
+  collectionId:'collectionId',
   vendor:   'vendor',
   suitablefor:'subsuitable',
   motifsize:'motif',
@@ -36,7 +36,13 @@ const PROPERTY_MAP = Object.freeze({
   subsuitable:'subsuitable',
 });
 
-export default function ShopArea({ shop_right = false, hidden_sidebar = false }) {
+export default function ShopArea({ shop_right = false, hidden_sidebar = false, initialProducts = [], totalProducts = 0, initialPagination = null }) {
+  console.log('ShopArea Debug:', { 
+    initialProductsLength: initialProducts.length, 
+    totalProducts, 
+    initialPagination 
+  });
+
   // ────── URL params ─────────────────────────
   const p               = useSearchParams();
   const category        = p.get('category');
@@ -50,30 +56,126 @@ export default function ShopArea({ shop_right = false, hidden_sidebar = false })
   const oz              = p.get('oz');
   const quantity        = p.get('quantity');
   const purchasePrice   = p.get('purchasePrice');
+  const searchQuery     = p.get('q') || p.get('searchText');
 
   // ────── State & handlers ────────────────────
   const [priceValue,      setPriceValue]      = useState([0, 1000]);
   const [selectValue,     setSelectValue]     = useState('');
   const [currPage,        setCurrPage]        = useState(1);
+  const [currentApiPage,  setCurrentApiPage]  = useState(1);
   const [selectedFilters, setSelectedFilters] = useState({});
+  const [allLoadedProducts, setAllLoadedProducts] = useState(initialProducts);
+  const [hasMorePages, setHasMorePages] = useState(totalProducts > 50);
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearchActive, setIsSearchActive] = useState(!!searchQuery);
 
   const handleFilterChange = (obj) => {
     setCurrPage(1);
+    setCurrentApiPage(1);
     setSelectedFilters(obj);
+    setAllLoadedProducts(initialProducts); // Reset to initial products when filtering
   };
+  
   const handleSlider = (val) => {
     setCurrPage(1);
+    setCurrentApiPage(1);
     setPriceValue(val);
   };
+  
   const handleSelect = (e) => {
     setSelectValue(e.value);
   };
+
+  const loadMoreProducts = () => {
+    setCurrentApiPage(prev => prev + 1);
+  };
+
+  const handleSearchResults = (results) => {
+    setSearchResults(results);
+    setIsSearchActive(!!results);
+    setCurrPage(1);
+    setCurrentApiPage(1);
+  };
+
+  // Perform search when searchQuery from URL changes
+  useEffect(() => {
+    const performSearch = async (query) => {
+      if (!query || !query.trim() || query.trim().length < 2) {
+        setSearchResults(null);
+        setIsSearchActive(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`https://espobackend.vercel.app/api/product/search/${encodeURIComponent(query.trim())}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.success && Array.isArray(data.data)) {
+            setSearchResults(data);
+            setIsSearchActive(true);
+            setCurrPage(1);
+            setCurrentApiPage(1);
+          } else {
+            setSearchResults({ data: [], total: 0, success: false });
+            setIsSearchActive(true);
+          }
+        } else {
+          console.error('Search API error:', response.status);
+          setSearchResults({ data: [], total: 0, success: false });
+          setIsSearchActive(true);
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults({ data: [], total: 0, success: false });
+        setIsSearchActive(true);
+      }
+    };
+
+    if (searchQuery && searchQuery.trim().length >= 2) {
+      performSearch(searchQuery);
+    } else {
+      setSearchResults(null);
+      setIsSearchActive(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  // Remove any "Results for" text from page title or headings
+  useEffect(() => {
+    // Remove from document title if it contains "Results for"
+    if (typeof document !== 'undefined') {
+      const originalTitle = document.title;
+      if (originalTitle.includes('Results for') || originalTitle.includes('results for')) {
+        document.title = 'Shop - Browse Products';
+      }
+    }
+    
+    // Remove any headings with "Results for" text
+    if (typeof document !== 'undefined') {
+      const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      headings.forEach(heading => {
+        const text = heading.textContent || heading.innerText;
+        if (text.includes('Results for') || text.includes('results for') || text.match(/Nokia-\d+\s+Results\s+for/i)) {
+          heading.style.display = 'none';
+        }
+      });
+    }
+  }, [searchQuery, searchResults]);
 
   const otherProps = {
     priceFilterValues: { priceValue, handleChanges: handleSlider, setPriceValue },
     selectHandleFilter: handleSelect,
     currPage, setCurrPage,
+    currentApiPage, setCurrentApiPage,
     selectedFilters, handleFilterChange,
+    loadMoreProducts,
+    hasMorePages,
+    totalProducts: isSearchActive ? (searchResults?.total || 0) : totalProducts,
+    isSearchActive,
+    searchResults,
+    handleSearchResults,
   };
 
   // ────── Data fetching ───────────────────────
@@ -84,9 +186,11 @@ export default function ShopArea({ shop_right = false, hidden_sidebar = false })
   const priceQ         = useGetPriceUptoQuery(minPrice, {
                           skip: !(minPrice && maxPrice && minPrice === maxPrice),
                         });
-  const allQ           = useGetAllNewProductsQuery(undefined, {
+  const allQ           = useGetAllNewProductsQuery({ limit: 50, page: currentApiPage }, {
                           skip: gsm || oz || quantity || purchasePrice ||
-                                (minPrice && maxPrice && minPrice === maxPrice),
+                                (minPrice && maxPrice && minPrice === maxPrice) ||
+                                currentApiPage === 1 || // Skip if it's page 1 (we have initial data)
+                                isSearchActive, // Skip API calls when search is active
                         });
 
   const { data: productsData, isLoading, isError } =
@@ -98,10 +202,30 @@ export default function ShopArea({ shop_right = false, hidden_sidebar = false })
     allQ;
 
   // memoize so we don’t rebuild [] on every render
-  const products = useMemo(
-    () => productsData?.data ?? [],
-    [productsData?.data],
-  );
+  const products = useMemo(() => {
+    // Use search results if search is active
+    if (isSearchActive && searchResults) {
+      return searchResults.data || [];
+    }
+    
+    // Use API data if available, otherwise fall back to initialProducts
+    if (productsData?.data && Array.isArray(productsData.data)) {
+      return productsData.data;
+    }
+    // Fall back to initialProducts from server-side rendering
+    return Array.isArray(initialProducts) ? initialProducts : [];
+  }, [productsData?.data, initialProducts, isSearchActive, searchResults]);
+
+  // Handle loading more products
+  useEffect(() => {
+    if (productsData?.data && currentApiPage > 1) {
+      setAllLoadedProducts(prev => [...prev, ...productsData.data]);
+      
+      // Check if there are more pages
+      const totalPages = productsData?.pagination?.totalPages || Math.ceil(totalProducts / 50);
+      setHasMorePages(currentApiPage < totalPages);
+    }
+  }, [productsData, currentApiPage, totalProducts]);
 
   // auto-expand price slider max
   useEffect(() => {

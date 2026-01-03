@@ -144,9 +144,10 @@ async function fetchProductsSSR() {
   const API_BASE2 = trimEndSlash(RAW_BASE);
 
   const candidates = [
-    `${API_BASE2}/products?limit=24`,
-    `${API_BASE2}/product?limit=24`,
-    `${API_BASE2}/catalog/products?limit=24`,
+    `${API_BASE2}/product?limit=50&page=1`, // Fetch first 50 products
+    `${API_BASE2}/product/?limit=50&page=1`, // Alternative with explicit page
+    `${API_BASE2}/products?limit=50`,
+    `${API_BASE2}/catalog/products?limit=50`,
   ];
 
   for (const url of candidates) {
@@ -159,26 +160,51 @@ async function fetchProductsSSR() {
       if (!res.ok) continue;
 
       const payload = await res.json();
+      
+      console.log('Server-side API Response:', payload); // Debug log
+      
+      // Handle the new API response structure
+      if (payload?.success && payload?.data && Array.isArray(payload.data)) {
+        return {
+          products: payload.data,
+          total: payload.total || payload.data.length,
+          pagination: payload.pagination
+        };
+      }
+      
+      if (payload?.products && Array.isArray(payload.products)) {
+        return {
+          products: payload.products,
+          total: payload.total || payload.products.length,
+          pagination: payload.pagination
+        };
+      }
+      
       const data =
         (Array.isArray(payload?.data) && payload.data) ||
         (Array.isArray(payload) && payload) ||
         (Array.isArray(payload?.data?.items) && payload.data.items) ||
         [];
 
-      return Array.isArray(data) ? data : [];
-    } catch {
+      return {
+        products: Array.isArray(data) ? data : [],
+        total: payload.total || data.length,
+        pagination: payload.pagination || null
+      };
+    } catch (error) {
+      console.error('Server-side fetch error:', error);
       // try next candidate
     }
   }
 
-  return [];
+  return { products: [], total: 0, pagination: null };
 }
 
 /* ---------------------------------------------
    Page (Server Component)
 ---------------------------------------------- */
 export default async function ShopPage() {
-  const initialProducts = await fetchProductsSSR();
+  const initialData = await fetchProductsSSR();
 
   return (
     <Wrapper>
@@ -199,7 +225,11 @@ export default async function ShopPage() {
       </h1>
 
       <div className="shop-page-spacing">
-        <ShopArea initialProducts={initialProducts} />
+        <ShopArea 
+          initialProducts={initialData.products} 
+          totalProducts={initialData.total}
+          initialPagination={initialData.pagination}
+        />
       </div>
 
       <Footer primary_style />

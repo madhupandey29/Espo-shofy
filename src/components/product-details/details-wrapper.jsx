@@ -229,9 +229,14 @@ const DetailsWrapper = ({ productItem = {} }) => {
     status,
     slug,
     leadtime,
+    supplyModel,
 
+    // ✅ FIXED: Use direct values from API instead of IDs
+    structure,
     structureId,
+    content,
     contentId,
+    finish,
     finishId,
 
     design, designId,
@@ -242,10 +247,14 @@ const DetailsWrapper = ({ productItem = {} }) => {
     gsm, oz, cm, inch, width,
   } = productItem;
 
-  // Extract leadtime for display
-  const leadtimeDisplay = Array.isArray(leadtime) && leadtime.length > 0 
-    ? leadtime[0] 
-    : status || 'In Stock';
+  // Extract supplyModel for display
+  const supplyModelDisplay = pick(
+    productItem?.supplyModel,
+    productFull?.supplyModel,
+    Array.isArray(leadtime) && leadtime.length > 0 ? leadtime[0] : null,
+    status,
+    'In Stock'
+  );
 
   /* ✅ Fetch product details for shortProductDescription (and other fields if needed) */
   const [productFull, setProductFull] = useState(null);
@@ -262,14 +271,20 @@ const DetailsWrapper = ({ productItem = {} }) => {
   }, [slug]);
 
   // ✅ Short description (prefer API field, fallback to existing description)
-  const shortDescHtml = pick(productFull?.shortProductDescription);
+  const shortDescHtml = pick(
+    productItem?.shortProductDescription,
+    productFull?.shortProductDescription,
+    productItem?.shortDescription
+  );
 
   /* SEO: lead time / rating / reviews */
   const { data: seoResp } = useGetSeoByProductQuery(_id, { skip: !_id });
   const seoDoc = Array.isArray(seoResp?.data) ? seoResp?.data?.[0] : (seoResp?.data || seoResp);
   const leadTimeDays = pick(seoDoc?.leadtime);
-  const ratingValue = pick(seoDoc?.rating_value);
-  const ratingCount = pick(seoDoc?.rating_count);
+  
+  // ✅ FIXED: Use rating from product data first, then SEO data
+  const ratingValue = pick(productItem?.ratingValue, seoDoc?.rating_value);
+  const ratingCount = pick(productItem?.ratingCount, seoDoc?.rating_count);
 
   const dispatch = useDispatch();
   const { wishlist } = useSelector((state) => state.wishlist);
@@ -299,7 +314,7 @@ const DetailsWrapper = ({ productItem = {} }) => {
       <div className="product-header">
         <div className="product-category">
           <span className="category-badge">{category?.name || newCategoryId?.name}</span>
-          <span className="stock-badge">{leadtimeDisplay}</span>
+          <span className="stock-badge">{supplyModelDisplay}</span>
         </div>
         
         <h1 className="product-title" dangerouslySetInnerHTML={{ __html: highlight(title) }} />
@@ -317,7 +332,9 @@ const DetailsWrapper = ({ productItem = {} }) => {
         <div className="facts-grid">
           <div className="fact-item">
             <span className="fact-label">Content</span>
-            <ContentInfo id={contentId} />
+            <span className="fact-value">
+              {Array.isArray(content) ? content.join(', ') : (content || 'N/A')}
+            </span>
           </div>
           <div className="fact-item">
             <span className="fact-label">Width</span>
@@ -329,15 +346,17 @@ const DetailsWrapper = ({ productItem = {} }) => {
           </div>
           <div className="fact-item">
             <span className="fact-label">Finish</span>
-            <FinishInfo id={finishId} />
+            <span className="fact-value">
+              {Array.isArray(finish) ? finish.join(', ') : (finish || 'N/A')}
+            </span>
           </div>
           <div className="fact-item">
             <span className="fact-label">Design</span>
-            <span className="fact-value">{designName || 'N/A'}</span>
+            <span className="fact-value">{design || designName || 'N/A'}</span>
           </div>
           <div className="fact-item">
             <span className="fact-label">Structure</span>
-            <StructureInfo id={structureId} />
+            <span className="fact-value">{structure || 'N/A'}</span>
           </div>
           <div className="fact-item">
             <span className="fact-label">Colors</span>
@@ -345,15 +364,15 @@ const DetailsWrapper = ({ productItem = {} }) => {
           </div>
           <div className="fact-item">
             <span className="fact-label">Motif</span>
-            <span className="fact-value">{motifName || 'N/A'}</span>
+            <span className="fact-value">{motif || motifName || 'N/A'}</span>
           </div>
           <div className="fact-item">
             <span className="fact-label">Rating</span>
             <div className="fact-value"><Stars value={ratingValue} /></div>
           </div>
           <div className="fact-item">
-            <span className="fact-label">Lead time</span>
-            <span className="fact-value">{nonEmpty(leadTimeDays) ? `${leadTimeDays} days` : 'N/A'}</span>
+            <span className="fact-label">Supply Model</span>
+            <span className="fact-value">{supplyModelDisplay}</span>
           </div>
         </div>
       </div>

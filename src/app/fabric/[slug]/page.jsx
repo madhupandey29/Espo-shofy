@@ -59,18 +59,21 @@ const sanitizeOgType = (t) => {
 ----------------------------- */
 async function getProductBySlug(slug) {
   try {
-    // ✅ uses env base (so you don't hardcode domain)
-    const res = await fetch(`${API_BASE}/product`, {
+    // ✅ Updated to use the new API endpoint structure
+    const res = await fetch(`${API_BASE}/product/fieldname/productslug/${slug}`, {
       next: { revalidate },
     });
     if (!res.ok) return null;
 
     const j = await res.json();
-    const list = Array.isArray(j?.data) ? j.data : [];
-
-    return (
-      list.find(p => String(p?.slug || '').trim() === String(slug || '').trim()) || null
-    );
+    // Handle the response structure from the new API - it returns data array
+    if (j?.success && j?.data && Array.isArray(j.data) && j.data.length > 0) {
+      return j.data[0]; // Return the first product
+    }
+    if (j?.products && Array.isArray(j.products) && j.products.length > 0) {
+      return j.products[0]; // Fallback for products array
+    }
+    return null;
   } catch {
     return null;
   }
@@ -94,15 +97,15 @@ export async function generateMetadata({ params }) {
   const title = pick(product?.productTitle, product?.name, fallbackTitle);
 
   const description = stripHtml(
-    pick(product?.shortProductDescription, '')
+    pick(product?.shortProductDescription, product?.description, '')
   );
 
   const twitterCard = pick(product?.twitterCard, 'summary_large_image');
   const ogType = sanitizeOgType(product?.ogType);
 
-  // ✅ OG image should be "image1" field (your requirement)
-  // (fallback to main img only if image1 is empty, so OG is not blank)
-  const ogImageUrl = toAbsUrl(pick(product?.image1, product?.img, product?.image, ''));
+  // ✅ OG image should be "image1CloudUrl" field (your requirement)
+  // (fallback to main img only if image1CloudUrl is empty, so OG is not blank)
+  const ogImageUrl = toAbsUrl(pick(product?.image1CloudUrl, product?.image1, product?.img, product?.image, ''));
 
   return {
     title,

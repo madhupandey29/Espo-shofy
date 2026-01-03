@@ -4,32 +4,28 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useDispatch, useSelector } from 'react-redux';
 import { usePathname, useRouter } from 'next/navigation';
-import useSticky from '@/hooks/use-sticky';
-import useCartInfo from '@/hooks/use-cart-info'; // keep if you still need other info it provides
-import Image from 'next/image';
 
-import {
-  openCartMini,
-  selectCartDistinctCount,
-  fetch_cart_products,
-} from '@/redux/features/cartSlice';
+import useSticky from '@/hooks/use-sticky';
+import useCartInfo from '@/hooks/use-cart-info';
+import useGlobalSearch from '@/hooks/useGlobalSearch';
+
+import { fetch_cart_products } from '@/redux/features/cartSlice';
 import CartMiniSidebar from '@/components/common/cart-mini-sidebar';
 import OffCanvas from '@/components/common/off-canvas';
 import Menus from './header-com/menus';
+
 import { CartTwo, Search } from '@/svg';
 import { FaHeart, FaUser } from 'react-icons/fa';
 import { useGetSessionInfoQuery } from '@/redux/features/auth/authApi';
 import { FiMenu } from 'react-icons/fi';
-import useGlobalSearch from '@/hooks/useGlobalSearch';
 
 /* =========================
-   Small helpers
+   Helpers
 ========================= */
 const PAGE_SIZE = 20;
 const MAX_LIMIT = 200;
 const nonEmpty = (v) => v !== undefined && v !== null && String(v).trim() !== '';
 
-/** Try to read userId from Redux first, then fallback to localStorage */
 const selectUserIdFromStore = (state) =>
   state?.auth?.user?._id ||
   state?.auth?.user?.id ||
@@ -38,27 +34,51 @@ const selectUserIdFromStore = (state) =>
   state?.user?.user?._id ||
   null;
 
-/** Normalizer for search results */
 function normalizeProduct(p) {
-  const id = p._id || p.id || p.slug || String(Math.random());
-  const slug = p.slug || p.seoSlug || p.handle || '';
+  const id = p._id || p.id || p.fabricCode || p.productslug || p.slug || String(Date.now());
+  const slug = p.productslug || p.slug || p.seoSlug || p.handle || '';
   const name = p.name || p.title || p.productname || p.productName || 'Untitled';
+
   const img =
-    p.image || p.img || p.thumbnail || p.images?.[0] || p.mainImage || p.picture ||
+    p.image1CloudUrl ||
+    p.image2CloudUrl ||
+    p.image3CloudUrl ||
+    p.image ||
+    p.img ||
+    p.thumbnail ||
+    (Array.isArray(p.images) ? p.images[0] : null) ||
+    p.mainImage ||
+    p.picture ||
     '/assets/img/product/default-product-img.jpg';
-  const price = p.price || p.mrp || p.minPrice || null;
-  return { id, slug, name, img, price };
+
+  const price = p.salesPrice || p.price || p.mrp || p.minPrice || null;
+
+  return { id, slug, name, img, price, ...p };
 }
 
-/** Multi-endpoint product search helper */
+/** ✅ Your search API */
 async function searchProducts(q, limit = PAGE_SIZE, signal) {
+  const primaryUrl = `https://espobackend.vercel.app/api/product/search/${encodeURIComponent(q)}`;
+
+  try {
+    const res = await fetch(primaryUrl, { signal });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && Array.isArray(data?.data)) {
+        return data.data.slice(0, limit).map(normalizeProduct);
+      }
+    }
+  } catch (err) {}
+
+  // Optional fallback (can remove if you want)
   const b = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/+$/, '');
-  const queries = [
+  const fallbackQueries = [
     `${b}/product/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     `${b}/product?q=${encodeURIComponent(q)}&limit=${limit}`,
     `/api/search?q=${encodeURIComponent(q)}&limit=${limit}`,
   ];
-  for (const url of queries) {
+
+  for (const url of fallbackQueries) {
     try {
       const res = await fetch(url, { signal });
       if (!res.ok) continue;
@@ -66,31 +86,28 @@ async function searchProducts(q, limit = PAGE_SIZE, signal) {
       const arr =
         Array.isArray(data) ? data
           : Array.isArray(data?.data) ? data.data
-            : Array.isArray(data?.results) ? data.results
-              : Array.isArray(data?.items) ? data.items
-                : [];
-      return arr.map(normalizeProduct);
-    } catch(err) {
-        console.log("Error in searchProducts:", err);
-    }
+          : Array.isArray(data?.results) ? data.results
+          : Array.isArray(data?.items) ? data.items
+          : [];
+      return arr.slice(0, limit).map(normalizeProduct);
+    } catch (err) {}
   }
+
   return [];
 }
 
-/** === NEW: dedicated fetcher for profile image by userId === */
+/** Avatar fetch (kept) */
 const SHOPY_API_BASE = 'https://test.amrita-fashions.com/shopy';
 async function fetchUserAvatarById(userId, signal) {
   if (!userId) return null;
   try {
     const res = await fetch(`${SHOPY_API_BASE}/users/${encodeURIComponent(userId)}`, {
       method: 'GET',
-      credentials: 'include', // safe to keep; server may ignore
+      credentials: 'include',
       signal,
     });
     if (!res.ok) return null;
     const json = await res.json();
-    // server example shape:
-    // { success: true, user: { userImage: "https://..." } }
     const url =
       json?.user?.userImage ||
       json?.userImage ||
@@ -106,74 +123,95 @@ const HeaderTwo = ({ style_2 = false }) => {
   const dispatch = useDispatch();
   const { sticky } = useSticky();
   const router = useRouter();
+  const pathname = usePathname();
 
   // ===== user / wishlist =====
   const reduxUserId = useSelector(selectUserIdFromStore);
   const [fallbackUserId, setFallbackUserId] = useState(null);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const uid = window.localStorage.getItem('userId');
       if (uid) setFallbackUserId(uid);
     }
   }, []);
+
   const userId = reduxUserId || fallbackUserId || null;
 
   const { wishlist } = useSelector((s) => s.wishlist || { wishlist: [] });
   const wishlistCount = Array.isArray(wishlist) ? wishlist.length : 0;
 
-  // ===== cart count (server-derived) =====
+  // ===== cart count =====
   const { quantity: cartCount } = useCartInfo();
   const distinctCount = cartCount ?? 0;
-  
-  // Debug: Log cart count in header
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Header-2 Cart Count Debug:', {
-      cartCount,
-      distinctCount,
-      userId
-    });
-  }
 
-  // Initial cart fetch when we have a userId
   useEffect(() => {
-    if (userId) {
-      dispatch(fetch_cart_products({ userId }));
-    }
+    if (userId) dispatch(fetch_cart_products({ userId }));
   }, [dispatch, userId]);
 
   const [isOffCanvasOpen, setIsCanvasOpen] = useState(false);
 
   // ===== GLOBAL SEARCH =====
-  const { query, setQuery, debounced } = useGlobalSearch(150);
+  const { query, setQuery, debounced, reset } = useGlobalSearch(150);
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [results, setResults] = useState([]);
   const [selIndex, setSelIndex] = useState(-1);
   const [limit, setLimit] = useState(PAGE_SIZE);
+
+  // ✅ only open product page if user explicitly selects with arrow keys
+  const [explicitPick, setExplicitPick] = useState(false);
+
   const searchWrapRef = useRef(null);
   const dropRef = useRef(null);
 
-  useEffect(() => { setLimit(PAGE_SIZE); }, [debounced]);
+  // reset pagination when query changes
+  useEffect(() => setLimit(PAGE_SIZE), [debounced]);
 
+  /**
+   * ✅ IMPORTANT FIX:
+   * Fetch suggestions ONLY when dropdown is open.
+   * So after redirect to /shop?q=... dropdown stays closed and no "Nokia-..." line appears.
+   */
   useEffect(() => {
     const controller = new AbortController();
     const q = (debounced || '').trim();
+
     if (q.length < 2) {
-      setResults([]); setSelIndex(-1); setLoading(false); setLoadingMore(false);
+      setResults([]);
+      setSelIndex(-1);
+      setExplicitPick(false);
+      setLoading(false);
+      setLoadingMore(false);
       return;
     }
-    setLoading(true);
-    setSearchOpen(true);
-    searchProducts(q, Math.min(limit, MAX_LIMIT), controller.signal)
-      .then((arr) => { setResults(arr); setSelIndex(arr.length ? 0 : -1); })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [debounced, limit]);
 
+    // ✅ do not fetch / render suggestions unless dropdown is open
+    if (!searchOpen) {
+      setLoading(false);
+      return () => controller.abort();
+    }
+
+    setLoading(true);
+
+    searchProducts(q, Math.min(limit, MAX_LIMIT), controller.signal)
+      .then((arr) => {
+        setResults(arr);
+        setSelIndex(-1);        // no auto-select
+        setExplicitPick(false); // reset explicit selection
+      })
+      .finally(() => setLoading(false));
+
+    return () => controller.abort();
+  }, [debounced, limit, searchOpen]);
+
+  // infinite scroll inside dropdown
   useEffect(() => {
     const el = dropRef.current;
     if (!el) return;
+
     const onScroll = () => {
       if (loading || loadingMore) return;
       const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
@@ -183,10 +221,12 @@ const HeaderTwo = ({ style_2 = false }) => {
         setTimeout(() => setLoadingMore(false), 120);
       }
     };
+
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, [limit, loading, loadingMore]);
 
+  // close dropdown on outside click / Esc
   useEffect(() => {
     const onDoc = (e) => {
       const w = searchWrapRef.current;
@@ -194,10 +234,14 @@ const HeaderTwo = ({ style_2 = false }) => {
       if (!(e.target instanceof Node)) return;
       if (!w.contains(e.target)) setSearchOpen(false);
     };
-    const onEsc = (e) => { if (e.key === 'Escape') setSearchOpen(false); };
+    const onEsc = (e) => {
+      if (e.key === 'Escape') setSearchOpen(false);
+    };
+
     document.addEventListener('mousedown', onDoc, true);
     document.addEventListener('touchstart', onDoc, true);
     document.addEventListener('keydown', onEsc);
+
     return () => {
       document.removeEventListener('mousedown', onDoc, true);
       document.removeEventListener('touchstart', onDoc, true);
@@ -205,50 +249,75 @@ const HeaderTwo = ({ style_2 = false }) => {
     };
   }, []);
 
-  const pathname = usePathname();
-  useEffect(() => {
-    if (!pathname) return;
-    setQuery(''); setResults([]); setSelIndex(-1); setSearchOpen(false); setLimit(PAGE_SIZE);
-  }, [pathname, setQuery]);
-
-  const resetSearchUI = () => {
-    setQuery(''); setResults([]); setSelIndex(-1); setSearchOpen(false); setLimit(PAGE_SIZE);
+  const closeOnlyDropdown = () => {
+    setSearchOpen(false);
+    setResults([]);
+    setSelIndex(-1);
+    setLimit(PAGE_SIZE);
+    setExplicitPick(false);
   };
-  const go = (href) => {
-    resetSearchUI();
-    try { window.scrollTo?.(0, 0); } catch(err) { console.log("err:",err) ;}
+
+  const go = (href, opts = {}) => {
+    const keepQuery = !!opts.keepQuery;
+
+    closeOnlyDropdown();
+    if (!keepQuery) reset();
+
+    try { window.scrollTo?.(0, 0); } catch (err) {}
     router.push(href);
   };
 
+  // ✅ Submit:
+  // default -> shop
+  // only -> product-details if explicitPick=true and selected item has slug
   const onSearchSubmit = (e) => {
     e.preventDefault();
     const q = (query || '').trim();
 
-    if (selIndex >= 0 && results[selIndex]) {
-      const p = results[selIndex];
-      const href = p.slug ? `/product-details/${p.slug}` : `/product-details?id=${encodeURIComponent(p.id)}`;
-      go(href);
+    if (!q) {
+      setSearchOpen(true);
       return;
     }
-    if (q.length) {
-      go(`/search?searchText=${encodeURIComponent(q)}`);
-    } else {
-      setSearchOpen(true);
+
+    if (explicitPick && selIndex >= 0 && results[selIndex]) {
+      const p = results[selIndex];
+      if (p?.slug) {
+        go(`/product-details/${p.slug}`, { keepQuery: false }); // ✅ slug only
+        return;
+      }
+    }
+
+    go(`/shop?q=${encodeURIComponent(q)}`, { keepQuery: true });
+  };
+
+  const onSearchKeyDown = (e) => {
+    if (!searchOpen) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!results.length) return;
+      setExplicitPick(true);
+      setSelIndex((i) => Math.min(results.length - 1, i < 0 ? 0 : i + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!results.length) return;
+      setExplicitPick(true);
+      setSelIndex((i) => Math.max(-1, i - 1));
     }
   };
 
-  // ✅ Keyboard handler exists
-  const onSearchKeyDown = (e) => {
-    if (!searchOpen) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelIndex((i) => Math.min((results.length || 0) - 1, (i < 0 ? 0 : i + 1)));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelIndex((i) => Math.max(-1, i - 1));
-    }
-    // Enter handled by form submit
+  // clear: remove query and show all products
+  const clearSearch = () => {
+    closeOnlyDropdown();
+    reset();
+    router.push('/shop');
   };
+
+  // close dropdown when route changes (extra safety)
+  useEffect(() => {
+    closeOnlyDropdown();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   // ===== Session & user dropdown =====
   const [hasSession, setHasSession] = useState(false);
@@ -257,25 +326,18 @@ const HeaderTwo = ({ style_2 = false }) => {
   const userBtnRef = useRef(null);
   const userMenuRef = useRef(null);
 
-  // Prefer fetching full session if available (may include avatar)
   const { data: userData } = useGetSessionInfoQuery(
     { userId },
     { skip: !userId, refetchOnMountOrArgChange: true }
   );
 
-  // Update image from session payload if present
   useEffect(() => {
-    if (userData?.user?.userImage) {
-      setUserImage(userData.user.userImage);
-    } else if (userData?.user?.avatar) {
-      setUserImage(userData.user.avatar);
-    }
+    if (userData?.user?.userImage) setUserImage(userData.user.userImage);
+    else if (userData?.user?.avatar) setUserImage(userData.user.avatar);
   }, [userData]);
 
-  // === NEW: If userId exists but session didn't give avatar, fetch it from /shopy/users/{userId}
   useEffect(() => {
     if (!userId) return;
-    // If we already have an image from session, keep it; else fetch
     if (userImage && typeof userImage === 'string' && userImage.trim()) return;
 
     const controller = new AbortController();
@@ -286,7 +348,6 @@ const HeaderTwo = ({ style_2 = false }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  // Consider a user "has session" if either a server session or a userId exists
   useEffect(() => {
     const check = () => {
       const lsHasSessionId = typeof window !== 'undefined' && !!window.localStorage.getItem('sessionId');
@@ -304,7 +365,9 @@ const HeaderTwo = ({ style_2 = false }) => {
   useEffect(() => {
     const close = () => setUserOpen(false);
     const onPointer = (e) => {
-      const btn = userBtnRef.current, menu = userMenuRef.current, t = e.target;
+      const btn = userBtnRef.current;
+      const menu = userMenuRef.current;
+      const t = e.target;
       if (!t) return;
       if (btn?.contains(t) || menu?.contains(t)) return;
       close();
@@ -313,6 +376,7 @@ const HeaderTwo = ({ style_2 = false }) => {
     const onScroll = () => close();
     const onResize = () => close();
     const onVisibility = () => { if (document.visibilityState === 'hidden') close(); };
+
     if (userOpen) {
       document.addEventListener('mousedown', onPointer, true);
       document.addEventListener('touchstart', onPointer, true);
@@ -339,24 +403,17 @@ const HeaderTwo = ({ style_2 = false }) => {
         try {
           import('js-cookie')
             .then((Cookies) => Cookies.default.remove('userInfo'))
-            .catch((err) => console.error('Failed to remove userInfo cookie:', err));
-        } catch (err) {
-          console.error('Error importing js-cookie:', err);
-        }
+            .catch(() => {});
+        } catch {}
       }
     } finally {
       setHasSession(false);
       setUserOpen(false);
-      if (typeof window !== 'undefined') router.push('/');
+      router.push('/');
     }
   };
 
-  /** When user clicks the cart icon:
-   *  Navigate directly to cart page instead of opening mini sidebar
-   */
-  const onOpenCart = () => {
-    router.push('/cart');
-  };
+  const onOpenCart = () => router.push('/cart');
 
   const currentUrl = useMemo(() => {
     if (typeof window === 'undefined') return '/';
@@ -364,11 +421,11 @@ const HeaderTwo = ({ style_2 = false }) => {
     return url.pathname + url.search;
   }, []);
 
-  // Prefetch common routes for faster nav
   useEffect(() => {
     try {
-      ['/shop','/wishlist','/cart','/profile','/login','/register']
-        .forEach((p) => router.prefetch?.(p));
+      ['/shop', '/wishlist', '/cart', '/profile', '/login', '/register'].forEach((p) => {
+        if (router.prefetch) router.prefetch(p);
+      });
     } catch {}
   }, [router]);
 
@@ -412,26 +469,54 @@ const HeaderTwo = ({ style_2 = false }) => {
                     <div className="tp-header-bottom-right d-flex align-items-center justify-content-end">
 
                       {/* ======= SEARCH ======= */}
-                      <div className="tp-header-search-2 d-none d-sm-block me-3 search-spacer" ref={searchWrapRef}>
-                        <form onSubmit={onSearchSubmit}>
+                      <div className="tp-header-search-2 d-none d-sm-block me-3 search-wrap" ref={searchWrapRef}>
+                        <form onSubmit={onSearchSubmit} className="search-form">
                           <input
-                            value={query}
+                            value={query || ''}
                             onChange={(e) => {
                               const v = e.target.value;
                               setQuery(v);
+                              setExplicitPick(false);
                               if (v && !searchOpen) setSearchOpen(true);
+                              if (!v) closeOnlyDropdown();
                             }}
                             onKeyDown={onSearchKeyDown}
                             type="text"
                             placeholder="Search for Products..."
                             aria-label="Search products"
                             autoComplete="off"
-                            autoCorrect="off"
                             spellCheck={false}
                             inputMode="search"
-                            onFocus={() => { if (nonEmpty(query)) setSearchOpen(true); }}
+                            maxLength={200}
+                            onFocus={() => {
+                              if (nonEmpty(query)) setSearchOpen(true);
+                            }}
+                            className="search-input"
                           />
-                          <button type="submit" aria-label="Search"><Search /></button>
+
+                          {!!(query && query.trim()) && (
+                            <button
+                              type="button"
+                              className="search-clear"
+                              onClick={clearSearch}
+                              aria-label="Clear search"
+                              title="Clear"
+                            >
+                              ×
+                            </button>
+                          )}
+
+                          <button
+                            type="submit"
+                            className="search-submit"
+                            aria-label="Search"
+                            onClick={() => {
+                              // ensure dropdown doesn't force-open on submit
+                              // (submit will go to /shop by default)
+                            }}
+                          >
+                            <Search />
+                          </button>
                         </form>
 
                         {/* dropdown results */}
@@ -446,18 +531,22 @@ const HeaderTwo = ({ style_2 = false }) => {
                             {!loading && results.length === 0 && (
                               <div className="search-item muted">No results</div>
                             )}
+
                             {results.map((p, i) => {
-                              const href = p.slug ? `/product-details/${p.slug}` : `/product-details?id=${encodeURIComponent(p.id)}`;
                               const active = i === selIndex;
                               return (
                                 <button
                                   key={`${p.id}-${i}`}
                                   type="button"
                                   className={`search-item ${active ? 'active' : ''}`}
-                                  onMouseEnter={() => { setSelIndex(i); try { router.prefetch?.(href); } catch {} }}
+                                  onMouseEnter={() => setSelIndex(i)}
                                   onClick={() => {
-                                    setSelIndex(i);
-                                    go(href);
+                                    // ✅ click opens product only if slug exists
+                                    if (p?.slug) {
+                                      go(`/product-details/${p.slug}`, { keepQuery: false });
+                                    } else {
+                                      go(`/shop?q=${encodeURIComponent(query)}`, { keepQuery: true });
+                                    }
                                   }}
                                 >
                                   <span className="search-name">{p.name}</span>
@@ -465,6 +554,7 @@ const HeaderTwo = ({ style_2 = false }) => {
                                 </button>
                               );
                             })}
+
                             {loadingMore && <div className="search-item muted">Loading more…</div>}
                           </div>
                         )}
@@ -486,7 +576,6 @@ const HeaderTwo = ({ style_2 = false }) => {
                                 type="button"
                                 style={userImage ? { padding: 0, overflow: 'hidden', borderRadius: '50%' } : {}}
                               >
-                                {/* === Show avatar if available; else fallback icon === */}
                                 {userImage ? (
                                   <>
                                     <img
@@ -497,14 +586,12 @@ const HeaderTwo = ({ style_2 = false }) => {
                                         height: '32px',
                                         objectFit: 'cover',
                                         borderRadius: '50%',
-                                        border: '1px solid rgba(0,0,0,0.1)'
+                                        border: '1px solid rgba(0,0,0,0.1)',
                                       }}
                                       onError={(e) => {
                                         e.currentTarget.style.display = 'none';
-                                        // show icon if image fails
                                         const sib = e.currentTarget.nextElementSibling;
                                         if (sib && sib.style) sib.style.display = 'inline-flex';
-
                                       }}
                                     />
                                     <FaUser style={{ display: 'none' }} />
@@ -517,12 +604,7 @@ const HeaderTwo = ({ style_2 = false }) => {
                               {userOpen && (
                                 <div ref={userMenuRef} role="menu" className="user-menu-dropdown">
                                   <div className="user-menu-inner">
-                                    <button
-                                      className="user-item"
-                                      type="button"
-                                      role="menuitem"
-                                      onClick={() => { setUserOpen(false); go('/profile'); }}
-                                    >
+                                    <button className="user-item" type="button" role="menuitem" onClick={() => { setUserOpen(false); router.push('/profile'); }}>
                                       My Profile
                                     </button>
                                     <div className="user-divider" />
@@ -539,7 +621,6 @@ const HeaderTwo = ({ style_2 = false }) => {
                               className="tp-auth-cta"
                               aria-label="Login or Sign Up"
                               prefetch
-                              onMouseEnter={() => { try { router.prefetch?.('/login'); } catch {} }}
                             >
                               <span className="tp-auth-cta-text">
                                 <FaUser className="tp-auth-cta-icon" />
@@ -551,20 +632,15 @@ const HeaderTwo = ({ style_2 = false }) => {
 
                         {/* Wishlist */}
                         <div className="tp-header-action-item d-none d-lg-block me-2">
-                          <Link href="/wishlist" className="tp-header-action-btn" aria-label="Wishlist" prefetch onMouseEnter={() => { try { router.prefetch?.('/wishlist'); } catch {} }}>
+                          <Link href="/wishlist" className="tp-header-action-btn" aria-label="Wishlist" prefetch>
                             <FaHeart /><span className="tp-header-action-badge">{wishlistCount}</span>
                           </Link>
                         </div>
 
-                        {/* Cart — (show only when logged in / user present) */}
+                        {/* Cart */}
                         {hasSession && (
                           <div className="tp-header-action-item me-2">
-                            <button
-                              onClick={onOpenCart}
-                              className="tp-header-action-btn cartmini-open-btn"
-                              aria-label="Open cart"
-                              type="button"
-                            >
+                            <button onClick={onOpenCart} className="tp-header-action-btn cartmini-open-btn" aria-label="Open cart" type="button">
                               <CartTwo />
                               <span className="tp-header-action-badge" key={`cart-${distinctCount}`}>{distinctCount}</span>
                             </button>
@@ -585,9 +661,6 @@ const HeaderTwo = ({ style_2 = false }) => {
                 </div>
               </div>
             </div>
-
-            {/* FULL-WIDTH underline inside the sticky header (stays on scroll) */}
-            {/* <div className={`brand-underline-full ${sticky ? 'is-sticky' : ''}`} aria-hidden="true" /> */}
           </div>
         </div>
       </header>
@@ -596,66 +669,101 @@ const HeaderTwo = ({ style_2 = false }) => {
       <OffCanvas isOffCanvasOpen={isOffCanvasOpen} setIsCanvasOpen={setIsCanvasOpen} categoryType="fashion" />
 
       <style jsx>{`
-        .search-spacer { margin-right: 24px !important; }
-        @media (min-width: 992px)  { .search-spacer { margin-right: 32px !important; } }
-        @media (min-width: 1200px) { .search-spacer { margin-right: 40px !important; } }
-        .tp-header-search-2 form { position: relative; }
-        .tp-header-search-2 input { padding-right: 44px; }
-        .tp-header-search-2 button { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: 0; display: inline-flex; align-items: center; }
+        .search-wrap { position: relative; }
+
+        .search-form{
+          position: relative;
+          width: 480px;
+          max-width: 52vw;
+        }
+        @media (max-width: 1199px){ .search-form{ width: 440px; } }
+        @media (max-width: 991px){ .search-form{ width: 360px; max-width: 56vw; } }
+
+        .search-input{
+          width: 100%;
+          height: 44px;
+          border-radius: 12px;
+          border: 1px solid #cfd6df;
+          background: #fff;
+          color: #0f172a;
+          font-size: 14px;
+          padding: 0 78px 0 14px;
+          outline: none;
+        }
+        .search-input::placeholder{ color: #6b7280; }
+
+        .search-submit{
+          position: absolute;
+          right: 10px;
+          top: 50%;
+          transform: translateY(-50%);
+          height: 34px;
+          width: 34px;
+          border: 0;
+          background: transparent;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          padding: 0;
+          z-index: 2;
+        }
+
+        .search-clear{
+          position: absolute;
+          right: 46px;
+          top: 50%;
+          transform: translateY(-50%);
+          height: 30px;
+          width: 30px;
+          border: 0;
+          background: transparent;
+          cursor: pointer;
+          font-size: 22px;
+          line-height: 1;
+          color: #6b7280;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 9999px;
+          z-index: 2;
+        }
+        .search-clear:hover{ color: #111827; background: #f3f4f6; }
 
         .search-dropdown{
-          position:absolute;
-          margin-top:8px;
-          width:480px;
-          max-height:420px;
-          overflow:auto;
-          background:#fff;
-          border:1px solid #e5e7eb;
-          border-radius:12px;
+          position: absolute;
+          top: calc(100% + 8px);
+          left: 0;
+          width: 100%;
+          max-height: 420px;
+          overflow: auto;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
           box-shadow: 0 18px 40px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.06);
-          padding:6px;
+          padding: 6px;
           z-index: 50;
         }
-        .search-item{
-          width:100%;
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap:12px;
-          padding:10px 12px;
-          border-radius:8px;
-          background:#fff;
-          color:#0f172a;
-          border:0;
-          text-align:left;
-          cursor:pointer;
-        }
-        .search-item:hover, .search-item.active{ background:#eef2ff; }
-        .search-item.muted{ color:#6b7280; cursor:default; }
-        .search-name{ font-weight:600; }
-        .search-price{ font-weight:600; color:#0b1620; }
 
-        /* ===== Full-width gradient underline (sticks & thins on scroll) ===== */
-        .brand-underline-full{
-          position:absolute;
-          left:50%;
-          bottom:-6px;
-          transform:translateX(-50%);
-          width:100vw;
-          height:10px;
-          background: linear-gradient(90deg, #E6B354, #C7A458, #7F8DB8, #4866C1);
-          border-radius:9999px;
-          box-shadow:0 0 0 1px rgba(255,255,255,.06) inset;
-          pointer-events:none;
+        .search-item{
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 10px 12px;
+          border-radius: 8px;
+          background: #fff;
+          color: #0f172a;
+          border: 0;
+          text-align: left;
+          cursor: pointer;
         }
-        .brand-underline-full.is-sticky{
-          height:6px;
-          bottom:-5px;
-        }
-        @media (max-width:480px){
-          .brand-underline-full{ height:8px; bottom:-5px; }
-          .brand-underline-full.is-sticky{ height:5px; bottom:-4px; }
-        }
+        .search-item:hover, .search-item.active{ background: #eef2ff; }
+        .search-item.muted{ color:#6b7280; cursor: default; }
+
+        .search-name{ font-weight: 600; }
+        .search-price{ font-weight: 600; color: #0b1620; }
 
         /* Dropdown (account) */
         .user-menu-dropdown{
@@ -684,18 +792,15 @@ const HeaderTwo = ({ style_2 = false }) => {
         .user-item{
           display:block !important; width:100%; padding:10px 14px; border-radius:8px;
           font-size:14px; line-height:1.25; color:#111827; background:transparent; border:0; text-align:left;
-          cursor:pointer; transition:background .15s ease,color .15s ease,transform .02s ease;
+          cursor:pointer;
         }
         .user-item:hover{ background:#f3f4f6; }
-        .user-item:focus-visible{ outline:none; background:#eef2ff; box-shadow:0 0 0 3px rgba(99,102,241,.25) inset; }
-        .user-item:active{ transform:scale(.995); }
         .user-item.danger{ color:#b91c1c; }
         .user-item.danger:hover{ background:#fee2e2; }
         .user-divider{ height:1px; background:#e5e7eb; margin:2px 6px; border-radius:1px; }
         @keyframes menuPop{ from{ transform:translateY(-4px); opacity:0; } to{ transform:translateY(0); opacity:1; } }
-        @media (max-width:480px){ .user-menu-dropdown{ min-width:210px; right:-8px; } .user-menu-dropdown::before{ right:24px; } }
 
-        /* Auth CTA (logged-out) */
+        /* Auth CTA */
         .tp-auth-cta{
           display:inline-flex;
           align-items:center;
@@ -710,29 +815,9 @@ const HeaderTwo = ({ style_2 = false }) => {
           font-weight:600;
           line-height:1;
           white-space:nowrap;
-          transition:background .15s ease, box-shadow .15s ease, transform .02s ease;
         }
-        .tp-auth-cta:hover{
-          background:#e7ecf3;
-          box-shadow:0 1px 0 rgba(17,24,39,.06) inset;
-        }
-        .tp-auth-cta:active{ transform:translateY(0.5px); }
-
-        .tp-auth-cta-text{
-          display:inline-flex;
-          align-items:center;
-          gap:8px;
-          white-space:nowrap;
-          line-height:1;
-        }
-        .tp-auth-cta-text svg,
-        .tp-auth-cta-icon{
-          width:18px;
-          height:18px;
-          flex:0 0 auto;
-          display:inline-block;
-          vertical-align:middle;
-        }
+        .tp-auth-cta:hover{ background:#e7ecf3; }
+        .tp-auth-cta-text{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
       `}</style>
     </>
   );

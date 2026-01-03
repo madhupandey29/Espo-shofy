@@ -1,13 +1,12 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import ProductItem from '../products/fashion/product-item';
-import ShopListItem from './shop-list-item';
 import ShopTopLeft from './shop-top-left';
-import ShopTopRight from './shop-top-right';
-import ShopSidebarFilters from './ShopSidebarFilters';
-import ResetButton from './shop-filter/reset-button';
+import EnhancedShopSidebarFilters from './EnhancedShopSidebarFilters';
 import EmptyState from '@/components/common/empty-state';
-// Pagination removed for Load More behavior
+import { handleFilterSidebarOpen } from '@/redux/features/shop-filter-slice';
+import { Filter } from '@/svg';
 
 const ShopContent = ({
   all_products = [],
@@ -16,20 +15,28 @@ const ShopContent = ({
   shop_right,
   hidden_sidebar,
 }) => {
+  console.log('ShopContent Debug:', { 
+    allProductsLength: all_products.length, 
+    productsLength: products.length,
+    totalProducts: otherProps?.totalProducts 
+  });
+
   const {
     priceFilterValues,
     selectHandleFilter,
     setCurrPage,
-    currPage = 1,
     selectedFilters,
     handleFilterChange,
-  } = otherProps;
+    loadMoreProducts,
+    hasMorePages,
+    totalProducts,
+  } = otherProps || {};
 
   const { setPriceValue, priceValue } = priceFilterValues || {};
   const [filteredRows, setFilteredRows] = useState(products);
-  const [visibleCount, setVisibleCount] = useState(40);
+  const dispatch = useDispatch();
 
-  // measure header + toolbar to center the empty state
+  // measure header + toolbar to center empty state
   const [centerOffset, setCenterOffset] = useState(140);
   useEffect(() => {
     const calc = () => {
@@ -48,87 +55,160 @@ const ShopContent = ({
 
   useEffect(() => {
     setFilteredRows(products);
-    setVisibleCount(Math.min(40, products.length || 0));
-    setCurrPage(1);
+    setCurrPage?.(1);
   }, [products, setCurrPage]);
 
-  const maxPrice = all_products.reduce(
-    (m, p) => Math.max(m, +p.salesPrice || +p.price || 0),
-    1000
-  );
+  const maxPrice = useMemo(() => {
+    return all_products.reduce(
+      (m, p) => Math.max(m, +p.salesPrice || +p.price || 0),
+      1000
+    );
+  }, [all_products]);
 
-  // any active filters?
   const pv = Array.isArray(priceValue) ? priceValue : [0, maxPrice];
   const priceActive = pv[0] > 0 || pv[1] < maxPrice;
+
   const facetsActive =
     selectedFilters && Object.values(selectedFilters).some((v) =>
       Array.isArray(v) ? v.length > 0 : !!v
     );
+
   const anyActive = !!(priceActive || facetsActive);
 
-  // reset handler
   const resetAll = () => {
     setPriceValue?.([0, maxPrice]);
     handleFilterChange?.({});
     setCurrPage?.(1);
+    
+    // Clear search if active - this will be handled by the search component itself
+    // We don't need to call handleSearchResults here as it might cause conflicts
   };
 
-  // no pagination; using incremental visibility via Load More
+  // ✅ Build chips list
+  const chips = useMemo(() => {
+    const out = [];
+
+    if (selectedFilters) {
+      for (const [k, vals] of Object.entries(selectedFilters)) {
+        if (!Array.isArray(vals)) continue;
+        vals.forEach((v) => {
+          out.push({
+            id: `${k}:${v}`,
+            key: k,
+            value: String(v),
+          });
+        });
+      }
+    }
+
+    if (priceActive) {
+      out.push({
+        id: `price:${pv[0]}-${pv[1]}`,
+        key: 'price',
+        value: `${pv[0]} - ${pv[1]}`,
+      });
+    }
+
+    return out;
+  }, [selectedFilters, priceActive, pv]);
+
+  const removeChip = (chip) => {
+    if (!chip) return;
+
+    if (chip.key === 'price') {
+      setPriceValue?.([0, maxPrice]);
+      return;
+    }
+
+    const current = Array.isArray(selectedFilters?.[chip.key]) ? selectedFilters[chip.key] : [];
+    const nextArr = current.filter((x) => String(x) !== String(chip.value));
+    const next = { ...(selectedFilters || {}) };
+
+    if (nextArr.length) next[chip.key] = nextArr;
+    else delete next[chip.key];
+
+    handleFilterChange?.(next);
+  };
 
   return (
     <section className="tp-shop-area pb-120">
       <div className="container">
-        <div className="row">
+        <div className="row align-items-start">
           {/* sidebar */}
           {!shop_right && !hidden_sidebar && (
-            <aside className="col-xl-3 col-lg-4 d-none d-lg-block">
+            <aside className="col-auto d-none d-lg-block shop-sidebar-col">
               <div className="sticky-filter">
-                <div className="filter-header d-flex align-items-center justify-content-between">
-                  <h3 className="tp-shop-widget-title mb-0">Filter</h3>
-                  <ResetButton
-                    className="filter-reset-btn"
-                    active={anyActive}
-                    setPriceValues={setPriceValue}
-                    maxPrice={maxPrice}
-                    handleFilterChange={handleFilterChange}
-                    aria-label="Reset all filters"
-                  />
-                </div>
-
-                <ShopSidebarFilters
+                <EnhancedShopSidebarFilters
                   selected={selectedFilters}
                   onFilterChange={handleFilterChange}
-                  hideTitle={true}
+                  onResetAll={resetAll}
                 />
               </div>
             </aside>
           )}
 
           {/* main */}
-          <div className={hidden_sidebar ? 'col-xl-12 col-lg-12' : 'col-xl-9 col-lg-8 col-12'}>
+          <div className={hidden_sidebar ? 'col-12' : 'col shop-main-col'}>
             <div className="tp-shop-main-wrapper">
               <div className="shop-toolbar-sticky">
-                <div className="tp-shop-top mb-45">
-                  <div className="row">
-                     <div className="col-xl-6 mb-10">
+                <div className="tp-shop-top">
+                  <div className="row align-items-start">
+                    <div className="col-xl-7 mb-10">
                       <ShopTopLeft
-                        showing={filteredRows.slice(0, visibleCount).length}
-                        total={all_products.length}
+                        total={totalProducts || all_products.length} // Show total products, not filtered
+                        chips={chips}
+                        onRemoveChip={removeChip}
+                        onClearAll={resetAll}
                       />
-                    </div> 
-                    <div className="col-xl-6">
-                      <ShopTopRight selectHandleFilter={selectHandleFilter} />
-                    </div> 
+                    </div>
+                    <div className="col-xl-5">
+                      <div className="shopTopRight" role="region" aria-label="Sort toolbar">
+                        {/* Sort */}
+                        {selectHandleFilter && (
+                          <div className="shopSort d-none d-lg-block">
+                            <select 
+                              onChange={(e) => {
+                                if (selectHandleFilter) {
+                                  selectHandleFilter({ value: e.target.value });
+                                }
+                              }} 
+                              aria-label="Sort products"
+                            >
+                              <option value="default">Sort: Recommended</option>
+                              <option value="new">What's New</option>
+                              <option value="priceLow">Price: Low to High</option>
+                              <option value="priceHigh">Price: High to Low</option>
+                              <option value="nameAsc">Name: A to Z</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Mobile Filter button */}
+                        <div className="shopFilterBtn d-lg-none">
+                          <button
+                            type="button"
+                            className="tp-filter-btn"
+                            onClick={() => dispatch(handleFilterSidebarOpen())}
+                            aria-label="Open filters"
+                          >
+                            <span className="tp-filter-icon"><Filter /></span>
+                            <span className="tp-filter-label">Filter</span>
+                          </button>
+                        </div>
+
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
+
               <div className="tp-shop-items-wrapper tp-shop-item-primary">
                 {filteredRows.length === 0 ? (
-                  <div className="shop-empty" style={{ ['--page-offset']: `${centerOffset}px` }}>
+                  <div className="shop-empty" style={{ '--page-offset': `${centerOffset}px` }}>
                     <EmptyState
                       title="No products match your filters"
-                      subtitle="Try adjusting your filters or explore more categories."
+                      subtitle="Try adjusting your filters."
                       tips={['Clear some filters', 'Try a different category', 'Widen the price range']}
                       primaryAction={{ label: 'Reset all filters', onClick: resetAll }}
                       secondaryAction={{ label: 'Browse all products', href: '/fabric' }}
@@ -136,42 +216,27 @@ const ShopContent = ({
                   </div>
                 ) : (
                   <>
-                    <div className="tab-content" id="productTabContent">
-                      <div className="tab-pane fade show active" id="grid-tab-pane">
-                        {/* ✅ Use products-grid instead of bootstrap row */}
-                        <div className="products-grid">
-                          {filteredRows
-                            .slice(0, visibleCount)
-                            .map((item) => (
-                              <ProductItem key={item._id} product={item} />
-                            ))}
-                        </div>
-                      </div>
-
-                      <div className="tab-pane fade" id="list-tab-pane">
-                        <div className="tp-shop-list-wrapper tp-shop-item-primary mb-70">
-                          {filteredRows
-                            .slice(0, visibleCount)
-                            .map((item) => (
-                              <ShopListItem key={item._id} product={item} />
-                            ))}
-                        </div>
-                      </div>
+                    {/* ✅ Grid only */}
+                    <div className="products-grid">
+                      {filteredRows.map((item, i) => (
+                        <ProductItem key={item._id || item.id || i} product={item} index={i} />
+                      ))}
                     </div>
 
-                    {visibleCount < filteredRows.length && (
-                      <div className="row">
-                        <div className="col-xl-12">
-                          <div className="load-more-wrapper mt-30">
-                            <button
-                              type="button"
-                              className="load-more-btn"
-                              onClick={() => setVisibleCount(filteredRows.length)}
-                            >
-                              Load more
-                            </button>
-                          </div>
-                        </div>
+                    {/* Load More */}
+                    {(products.length < (totalProducts || all_products.length)) && (
+                      <div className="load-more-wrapper mt-30">
+                        <button
+                          type="button"
+                          className="load-more-btn"
+                          onClick={() => {
+                            if (hasMorePages && loadMoreProducts) {
+                              loadMoreProducts();
+                            }
+                          }}
+                        >
+                          Load More ({(totalProducts || all_products.length) - products.length} more)
+                        </button>
                       </div>
                     )}
                   </>
@@ -180,43 +245,63 @@ const ShopContent = ({
             </div>
           </div>
 
-          {shop_right && <aside className="col-xl-3 col-lg-4 d-none d-lg-block"></aside>}
+          {shop_right && <aside className="col-xl-3 col-lg-4 d-none d-lg-block" />}
         </div>
       </div>
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{__html: `
+        .tp-shop-main-wrapper { overflow: visible; }
+        .tp-shop-top{ padding: 14px 0; border-bottom: 1px solid var(--tp-grey-2); }
         .shop-empty {
           min-height: calc(100vh - var(--page-offset, 140px));
           display: grid;
           place-items: center;
           padding: 8px 0;
         }
-        .load-more-wrapper { display: flex; justify-content: center; }
-      .load-more-btn {
-  background: var(--tp-theme-primary);
-  color: var(--tp-common-white);
-  border: 2px solid var(--tp-theme-primary);
-  padding: 14px 32px;
-  border-radius: 50px;
-  font-weight: 600;
-  font-size: 15px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  font-family: var(--tp-ff-roboto);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--tp-theme-primary) 25%, transparent);
-}
-
-.load-more-btn:hover {
-  background: var(--tp-common-white);
-  color: var(--tp-theme-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--tp-theme-primary) 35%, transparent);
-}
-
-.load-more-btn:active {
-  transform: translateY(0);
-}
-      `}</style>
+        .shop-sidebar-col {
+          flex: 0 0 270px;
+          max-width: 270px;
+          padding-left: 0;
+        }
+        .shop-main-col { min-width: 0; }
+        .products-grid{
+          display:grid;
+          grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+          gap:18px;
+          width:100%;
+          margin-top: 18px;
+        }
+        @media (min-width: 1200px){
+          .products-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        }
+        .load-more-wrapper{ display:flex; justify-content:center; }
+        @media (max-width: 991.98px){
+          .shop-sidebar-col{ flex:1 1 auto; max-width:100%; }
+        }
+        .shopTopRight{
+          display:flex;
+          align-items:center;
+          justify-content:flex-end;
+          gap:12px;
+        }
+        .shopSort select{
+          height:44px;
+          border:1px solid var(--tp-grey-2);
+          border-radius:10px;
+          padding:0 12px;
+          background:var(--tp-common-white);
+          font: 600 13px/1 var(--tp-ff-roboto);
+          color:var(--tp-text-1);
+          cursor:pointer;
+        }
+        @media (max-width: 640px){
+          .shopTopRight{
+            display:grid;
+            grid-template-columns:minmax(0,1fr) 132px;
+            gap:10px;
+          }
+        }
+      `}} />
     </section>
   );
 };

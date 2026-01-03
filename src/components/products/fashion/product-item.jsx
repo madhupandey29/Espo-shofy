@@ -65,7 +65,7 @@ const getGradientColors = (count) => {
 
 /* safely extract a comparable id */
 const getAnyId = (obj) =>
-  obj?._id || obj?.id || obj?.productId || obj?.slug || obj?.product?._id || obj?.product?.id || obj?.product;
+  obj?._id || obj?.id || obj?.productId || obj?.slug || obj?.productslug || obj?.product?._id || obj?.product?.id || obj?.product;
 
 /* ensure a robust cart payload for your slice */
 const buildCartItem = (prd, opts = {}) => {
@@ -148,12 +148,52 @@ const ProductItem = ({ product, index = 0 }) => {
   const isHttpUrl = (s) => /^https?:\/\//i.test(s);
 
   const imageUrl = useMemo(() => {
+    // First check for Cloudinary URLs (direct URLs)
+    const cloudinaryFields = [
+      product?.image1CloudUrl, product?.image2CloudUrl, product?.image3CloudUrl,
+      product?.imageCloudUrl, product?.cloudUrl
+    ];
+
+    console.log('ProductItem Debug:', {
+      productId: getAnyId(product),
+      productName: product?.name,
+      image1CloudUrl: product?.image1CloudUrl,
+      image2CloudUrl: product?.image2CloudUrl,
+      image3CloudUrl: product?.image3CloudUrl,
+      img: product?.img,
+      image1: product?.image1,
+      image2: product?.image2
+    });
+
+    for (const field of cloudinaryFields) {
+      if (field && typeof field === 'string' && field.trim() && 
+          field !== 'null' && field !== 'undefined' && field !== '') {
+        const cleanUrl = field.trim();
+        if (cleanUrl.startsWith('http')) {
+          console.log('Using Cloudinary URL:', cleanUrl);
+          return cleanUrl;
+        }
+      }
+    }
+
+    // Fallback to other image fields
     const raw =
       valueToUrlString(product?.img) ||
       valueToUrlString(product?.image1) ||
-      valueToUrlString(product?.image2);
-    if (!raw) return '/assets/img/product/default-product-img.jpg';
-    if (isHttpUrl(raw)) return raw;
+      valueToUrlString(product?.image2) ||
+      valueToUrlString(product?.image3) ||
+      valueToUrlString(product?.image) ||
+      valueToUrlString(product?.images) ||
+      valueToUrlString(product?.thumbnail);
+      
+    if (!raw) {
+      console.log('No image found, using fallback');
+      return '/assets/img/blog/fallback.jpg';
+    }
+    if (isHttpUrl(raw)) {
+      console.log('Using HTTP URL:', raw);
+      return raw;
+    }
 
     const base = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
     const clean = (p) =>
@@ -161,7 +201,9 @@ const ProductItem = ({ product, index = 0 }) => {
         .replace(/^\/+/, '')
         .replace(/^api\/uploads\/?/, '')
         .replace(/^uploads\/?/, '');
-    return `${base}/uploads/${clean(raw)}`;
+    const finalUrl = `${base}/uploads/${clean(raw)}`;
+    console.log('Constructed URL:', finalUrl);
+    return finalUrl;
   }, [product]);
 
   /* title, slug, category */
@@ -183,11 +225,12 @@ const ProductItem = ({ product, index = 0 }) => {
 
   const titleText = stripHtml(titleHtml).trim() || 'Product';
 
-  const slug = product?.slug || product?.product?.slug || seoDoc?.slug || productId;
+  const slug = product?.slug || product?.productslug || product?.product?.slug || seoDoc?.slug || productId;
 
   const categoryLabel =
     pick(
       product?.category?.name,
+      product?.category, // New API returns category as string
       product?.product?.category?.name,
       product?.categoryName,
       seoDoc?.category
@@ -202,14 +245,20 @@ const ProductItem = ({ product, index = 0 }) => {
 
   /* values */
   const fabricTypeVal =
-    toText(pick(product?.fabricType, product?.fabric_type, seoDoc?.fabricType)) || 'Woven Fabrics';
+    toText(pick(product?.fabricType, product?.fabric_type, product?.category, seoDoc?.fabricType)) || 'Woven Fabrics';
   const contentVal = toText(pick(product?.content, product?.contentName, product?.content_label, seoDoc?.content));
   const gsm = Number(pick(product?.gsm, product?.weightGsm, product?.weight_gsm));
-  const weightVal = isFinite(gsm) && gsm > 0 ? `${round(gsm)} gsm / ${round(gsmToOz(gsm))} oz` : toText(product?.weight);
+  const ozs = Number(pick(product?.ozs, product?.oz)); // New API uses 'ozs' field
+  const weightVal = isFinite(gsm) && gsm > 0 ? `${round(gsm)} gsm / ${round(gsmToOz(gsm))} oz` : 
+                   isFinite(ozs) && ozs > 0 ? `${round(gsmToOz(ozs * 34))} gsm / ${round(ozs)} oz` : // Convert ozs back to gsm for display
+                   toText(product?.weight);
   const designVal = toText(pick(product?.design, product?.designName, seoDoc?.design));
   const colorsVal = toText(pick(product?.colors, product?.color, product?.colorName, seoDoc?.colors));
-  const widthCm = Number(pick(product?.widthCm, product?.width_cm, product?.width));
-  const widthVal = isFinite(widthCm) && widthCm > 0 ? `${round(widthCm,0)} cm / ${round(cmToInch(widthCm),0)} inch` : toText(product?.widthLabel);
+  const widthCm = Number(pick(product?.widthCm, product?.width_cm, product?.width, product?.cm));
+  const widthInch = Number(pick(product?.widthInch, product?.width_inch, product?.inch));
+  const widthVal = isFinite(widthCm) && widthCm > 0 ? `${round(widthCm,0)} cm / ${round(cmToInch(widthCm),0)} inch` : 
+                  isFinite(widthInch) && widthInch > 0 ? `${round(widthInch * 2.54,0)} cm / ${round(widthInch,0)} inch` :
+                  toText(product?.widthLabel);
   const finishVal = toText(pick(product?.finish, product?.subfinish?.name, product?.finishName, seoDoc?.finish));
   const structureVal = toText(pick(product?.structure, product?.substructure?.name, product?.structureName, seoDoc?.structure));
   const motifVal = toText(pick(product?.motif, product?.motifName, seoDoc?.motif));
@@ -715,6 +764,7 @@ const ProductItem = ({ product, index = 0 }) => {
           font-size:12px; font-weight:500; color:var(--text-secondary); 
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; 
           position:relative;
+          text-wrap:auto;
         }
         .spec-value::before{
           content:'•';

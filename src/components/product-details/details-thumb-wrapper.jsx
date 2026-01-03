@@ -13,14 +13,22 @@ const isDataUrl = (url) => !!url && /^data:/i.test(url);
 const getYouTubeThumbnail = (url) => {
   if (!url) return null;
 
+  // Add protocol if missing
+  let processedUrl = url;
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    if (!url.startsWith('http')) {
+      processedUrl = `https://${url}`;
+    }
+  }
+
   let videoId = null;
 
-  if (url.includes('youtu.be/')) {
-    videoId = url.split('youtu.be/')[1]?.split('?')[0];
-  } else if (url.includes('youtube.com/watch?v=')) {
-    videoId = url.split('v=')[1]?.split('&')[0];
-  } else if (url.includes('youtube.com/embed/')) {
-    videoId = url.split('embed/')[1]?.split('?')[0];
+  if (processedUrl.includes('youtu.be/')) {
+    videoId = processedUrl.split('youtu.be/')[1]?.split('?')[0];
+  } else if (processedUrl.includes('youtube.com/watch?v=')) {
+    videoId = processedUrl.split('v=')[1]?.split('&')[0];
+  } else if (processedUrl.includes('youtube.com/embed/')) {
+    videoId = processedUrl.split('embed/')[1]?.split('?')[0];
   }
 
   if (videoId) return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
@@ -29,7 +37,10 @@ const getYouTubeThumbnail = (url) => {
 
 const processImageUrl = (url) => {
   if (!url) return null;
-  if (isRemote(url) || isDataUrl(url)) return url;
+  
+  if (isRemote(url) || isDataUrl(url)) {
+    return url;
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
   const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
@@ -37,7 +48,30 @@ const processImageUrl = (url) => {
 
   // ✅ keep slashes, encode each segment safely
   const encodedPath = cleanPath.split('/').map(encodeURIComponent).join('/');
+  const finalUrl = `${cleanBaseUrl}/uploads/${encodedPath}`;
+  
+  return finalUrl;
+};
 
+const processVideoUrl = (url) => {
+  if (!url) return null;
+  
+  // Handle YouTube URLs that might be missing protocol
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    if (!url.startsWith('http')) {
+      return `https://${url}`;
+    }
+    return url;
+  }
+  
+  // Handle other remote URLs
+  if (isRemote(url)) return url;
+  
+  // Handle local video files
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const cleanPath = url.startsWith('/') ? url.slice(1) : url;
+  const encodedPath = cleanPath.split('/').map(encodeURIComponent).join('/');
   return `${cleanBaseUrl}/uploads/${encodedPath}`;
 };
 
@@ -67,7 +101,7 @@ const DetailsThumbWrapper = ({
 
   imageURLs,
   apiImages,
-  groupCodeData,
+  groupCodeData, // Using collection data instead of groupcode
 
   handleImageActive,
   activeImg,
@@ -127,7 +161,7 @@ const DetailsThumbWrapper = ({
     ].find((v) => typeof v === 'string' && v.trim() !== '');
 
     if (productVideoUrl) {
-      const videoUrl = isRemote(productVideoUrl) ? productVideoUrl : processImageUrl(productVideoUrl);
+      const videoUrl = processVideoUrl(productVideoUrl);
 
       const poster =
         processImageUrl(videoThumbnail || productData.videoThumbnail) ||
@@ -141,40 +175,54 @@ const DetailsThumbWrapper = ({
     return list;
   }, [img, image1, image2, image3, videourl, video, videoThumbnail, apiImages]);
 
-  /* ---------- Group code media (exactly 1 image + 1 video if available) ---------- */
-  const groupCodeMedia = useMemo(() => {
+  /* ---------- Collection media (using collection data passed as groupCodeData) ---------- */
+  const collectionMedia = useMemo(() => {
     if (!groupCodeData) return [];
+    
     const media = [];
 
-    const groupImageField = [
-      groupCodeData.img,
+    // Collection image - using the new API structure
+    const collectionImageField = [
+      groupCodeData.collectionImage1CloudUrl,
+      groupCodeData.collectionImage1,
+      groupCodeData.img, // fallback for old structure
       groupCodeData.image,
-      groupCodeData.altimg,
-      groupCodeData.picture,
-    ].find((v) => typeof v === 'string' && v.trim() !== '');
+    ].find((v) => typeof v === 'string' && v.trim() !== '' && v !== 'null');
 
-    if (groupImageField) {
-      const imageUrl = processImageUrl(groupImageField);
-      if (imageUrl) media.push({ type: 'image', img: imageUrl, source: 'groupcode' });
+    if (collectionImageField) {
+      const collectionImageUrl = processImageUrl(collectionImageField);
+      if (collectionImageUrl) {
+        media.push({ 
+          type: 'image', 
+          img: collectionImageUrl, 
+          source: 'collection',
+          fallbackUrls: groupCodeData.collectionImage1Id ? [
+            `https://res.cloudinary.com/age-fabric/image/upload/${groupCodeData.collectionImage1Id}.jpg`,
+            `https://res.cloudinary.com/age-fabric/image/upload/collections/${groupCodeData.collectionImage1Id}.jpg`,
+          ] : []
+        });
+      }
     }
 
-    const groupVideoUrl = [
-      groupCodeData.videourl,
+    // Collection video - using the new API structure
+    const collectionVideoUrl = [
+      groupCodeData.collectionvideoURL,
+      groupCodeData.collectionVideo,
+      groupCodeData.videourl, // fallback for old structure
       groupCodeData.video,
-      groupCodeData.videoUrl,
-      groupCodeData.vid,
     ].find((v) => typeof v === 'string' && v.trim() !== '');
 
-    if (groupVideoUrl) {
-      const videoUrl = isRemote(groupVideoUrl) ? groupVideoUrl : processImageUrl(groupVideoUrl);
-
+    if (collectionVideoUrl) {
+      const videoUrl = processVideoUrl(collectionVideoUrl);
       const poster =
-        getYouTubeThumbnail(groupVideoUrl) ||
-        processImageUrl(groupImageField) ||
+        getYouTubeThumbnail(collectionVideoUrl) ||
+        (media[0]?.img) || // Use collection image if available
         (primaryThumbs?.[0]?.img || null) ||
         '/assets/img/product/default-product-img.jpg';
 
-      if (videoUrl) media.push({ type: 'video', img: poster, video: videoUrl, source: 'groupcode' });
+      if (videoUrl) {
+        media.push({ type: 'video', img: poster, video: videoUrl, source: 'collection' });
+      }
     }
 
     return media;
@@ -182,9 +230,12 @@ const DetailsThumbWrapper = ({
 
   /* ---------- Final list ---------- */
   const processedImageURLs = useMemo(() => {
-    const finalMedia = [...primaryThumbs, ...groupCodeMedia];
-    return uniqueByUrl(finalMedia);
-  }, [primaryThumbs, groupCodeMedia]);
+    // Put collection media AFTER product media (5th position)
+    const finalMedia = [...primaryThumbs, ...collectionMedia];
+    const uniqueMedia = uniqueByUrl(finalMedia);
+    
+    return uniqueMedia;
+  }, [primaryThumbs, collectionMedia]);
 
   /* ---------- Main image ---------- */
   const mainImageUrl = useMemo(() => {
@@ -389,7 +440,38 @@ const DetailsThumbWrapper = ({
                   style={{ objectFit: 'cover' }}
                   unoptimized={Boolean(item.img && (isCloudinaryUrl(item.img) || isDataUrl(item.img)))}
                   loading="lazy"
+                  onError={(e) => {
+                    // If this is a collection image with fallback URLs, try them
+                    if (item.source === 'collection' && item.fallbackUrls && item.fallbackUrls.length > 0) {
+                      const currentSrc = e.currentTarget.src;
+                      const currentIndex = item.fallbackUrls.findIndex(url => url === currentSrc);
+                      const nextIndex = currentIndex + 1;
+                      
+                      if (nextIndex < item.fallbackUrls.length) {
+                        e.currentTarget.src = item.fallbackUrls[nextIndex];
+                        return;
+                      }
+                    }
+                    // Final fallback
+                    e.currentTarget.src = '/assets/img/product/default-product-img.jpg';
+                  }}
                 />
+                {/* Visual indicator for collection images */}
+                {item.source === 'collection' && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '2px',
+                    background: '#4CAF50',
+                    color: 'white',
+                    fontSize: '8px',
+                    padding: '1px 3px',
+                    borderRadius: '2px',
+                    fontWeight: 'bold'
+                  }}>
+                    COLLECTION
+                  </div>
+                )}
               </button>
             );
           })}
@@ -418,9 +500,30 @@ const DetailsThumbWrapper = ({
           {isVideoActive && (currentVideoUrl || videoId) ? (
             currentVideoUrl && currentVideoUrl.includes('youtu') ? (
               <iframe
-                src={currentVideoUrl
-                  .replace('youtu.be/', 'www.youtube.com/embed/')
-                  .replace('watch?v=', 'embed/')}
+                src={(() => {
+                  let embedUrl = currentVideoUrl;
+                  if (embedUrl.includes('youtu.be/')) {
+                    const videoId = embedUrl.split('youtu.be/')[1]?.split('?')[0];
+                    embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&showinfo=0`;
+                  } else if (embedUrl.includes('watch?v=')) {
+                    const videoId = embedUrl.split('v=')[1]?.split('&')[0];
+                    embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&showinfo=0`;
+                  } else if (!embedUrl.includes('/embed/')) {
+                    // If it's already an embed URL, use as is
+                    // Otherwise try to extract video ID from any YouTube URL format
+                    const match = embedUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+                    if (match) {
+                      embedUrl = `https://www.youtube.com/embed/${match[1]}?rel=0&modestbranding=1&showinfo=0`;
+                    }
+                  } else if (embedUrl.includes('/embed/') && !embedUrl.includes('?')) {
+                    // Add parameters to existing embed URL if no parameters exist
+                    embedUrl += '?rel=0&modestbranding=1&showinfo=0';
+                  } else if (embedUrl.includes('/embed/') && embedUrl.includes('?')) {
+                    // Add parameters to existing embed URL with existing parameters
+                    embedUrl += '&rel=0&modestbranding=1&showinfo=0';
+                  }
+                  return embedUrl;
+                })()}
                 className="pdw-video"
                 style={{ width: '100%', height: '100%', border: 'none' }}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -530,9 +633,28 @@ const DetailsThumbWrapper = ({
               ) : currentVideoUrl ? (
                 currentVideoUrl.includes('youtu') ? (
                   <iframe
-                    src={currentVideoUrl
-                      .replace('youtu.be/', 'www.youtube.com/embed/')
-                      .replace('watch?v=', 'embed/')}
+                    src={(() => {
+                      let embedUrl = currentVideoUrl;
+                      if (embedUrl.includes('youtu.be/')) {
+                        const videoId = embedUrl.split('youtu.be/')[1]?.split('?')[0];
+                        embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&showinfo=0`;
+                      } else if (embedUrl.includes('watch?v=')) {
+                        const videoId = embedUrl.split('v=')[1]?.split('&')[0];
+                        embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&showinfo=0`;
+                      } else if (!embedUrl.includes('/embed/')) {
+                        const match = embedUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+                        if (match) {
+                          embedUrl = `https://www.youtube.com/embed/${match[1]}?rel=0&modestbranding=1&showinfo=0`;
+                        }
+                      } else if (embedUrl.includes('/embed/') && !embedUrl.includes('?')) {
+                        // Add parameters to existing embed URL if no parameters exist
+                        embedUrl += '?rel=0&modestbranding=1&showinfo=0';
+                      } else if (embedUrl.includes('/embed/') && embedUrl.includes('?')) {
+                        // Add parameters to existing embed URL with existing parameters
+                        embedUrl += '&rel=0&modestbranding=1&showinfo=0';
+                      }
+                      return embedUrl;
+                    })()}
                     className="pdw-modal-video"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
@@ -578,7 +700,7 @@ const DetailsThumbWrapper = ({
         .pdw-thumbs { width: 96px; }
         .pdw-thumbs-inner {
           display: flex; flex-direction: column; gap: 12px;
-          max-height: ${imgHeight}px;
+          max-height: ${Math.max(imgHeight + 100, 600)}px;
           overflow-y: auto; overflow-x: hidden; padding-right: 4px;
           scrollbar-width: thin;
         }

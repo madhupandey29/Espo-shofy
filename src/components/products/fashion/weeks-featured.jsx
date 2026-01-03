@@ -44,6 +44,22 @@ function absoluteUrlFromAnything(src) {
 function getImageUrl(item) {
   const p = item?.product || item;
   
+  // First check for Cloudinary URLs (direct URLs)
+  const cloudinaryFields = [
+    p?.image1CloudUrl, p?.image2CloudUrl, p?.image3CloudUrl,
+    p?.imageCloudUrl, p?.cloudUrl
+  ];
+
+  for (const field of cloudinaryFields) {
+    if (field && typeof field === 'string' && field.trim() && 
+        field !== 'null' && field !== 'undefined' && field !== '') {
+      const cleanUrl = field.trim();
+      if (cleanUrl.startsWith('http')) {
+        return cleanUrl;
+      }
+    }
+  }
+  
   // Try different image fields
   const imageFields = [
     p?.image1, p?.image2, p?.image3, p?.img, p?.image, 
@@ -57,7 +73,7 @@ function getImageUrl(item) {
     }
   }
 
-  return '/assets/img/placeholder/product.jpg';
+  return '/assets/img/product/product-1.jpg';
 }
 
 /* ---------------- productTag -> top badge (replace Denim Fabrics) ---------------- */
@@ -201,10 +217,20 @@ const WeeksFeatured = () => {
           const pid = p?._id || idx;
           const title = p?.name || item?.title || 'Product Name';
           const imageUrl = getImageUrl(item);
+          
+          // Debug logging for weeks-featured
+          console.log(`Featured Product ${idx}:`, { 
+            pid, 
+            title, 
+            image1CloudUrl: p?.image1CloudUrl,
+            image2CloudUrl: p?.image2CloudUrl,
+            image3CloudUrl: p?.image3CloudUrl,
+            finalImageUrl: imageUrl,
+            slug 
+          });
+          
           const slug = p?.slug || pid;
           const detailsHref = `/fabric/${encodeURIComponent(slug)}`;
-
-          console.log(`Featured Product ${idx}:`, { pid, title, imageUrl, slug });
 
           // ✅ Top-left badge text comes from productTag[]
           const tagArr = getTagArray(p, item);
@@ -240,7 +266,7 @@ const WeeksFeatured = () => {
                         quality={90}
                         className="card-image"
                         onError={(e) => {
-                          e.target.src = '/assets/img/placeholder/product.jpg';
+                          e.target.src = '/assets/img/product/product-1.jpg';
                         }}
                       />
                     </div>

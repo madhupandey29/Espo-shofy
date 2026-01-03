@@ -8,16 +8,30 @@ import DetailsTabNav from './details-tab-nav';
 import RelatedProducts from './related-products';
 
 import { useGetSeoByProductQuery } from '@/redux/features/seoApi';
-import useGroupCodeData from '@/hooks/useGroupCodeData';
 
 export default function ProductDetailsContent({ productItem }) {
   // ✅ IMPORTANT: normalize productItem (handles {data:[{...}]} / [{...}] / {...})
   const p = useMemo(() => {
     if (!productItem) return {};
-    if (Array.isArray(productItem)) return productItem[0] || {};
-    if (Array.isArray(productItem?.data)) return productItem.data[0] || {};
-    if (productItem?.data && typeof productItem.data === 'object') return productItem.data;
-    return productItem;
+    
+    let normalizedProduct = {};
+    
+    if (Array.isArray(productItem)) {
+      normalizedProduct = productItem[0] || {};
+    } else if (Array.isArray(productItem?.data)) {
+      normalizedProduct = productItem.data[0] || {};
+    } else if (productItem?.data && typeof productItem.data === 'object') {
+      normalizedProduct = productItem.data;
+    } else {
+      normalizedProduct = productItem;
+    }
+    
+    // ✅ CRITICAL: Ensure collection data is preserved
+    if (!normalizedProduct.collection && productItem?.data?.[0]?.collection) {
+      normalizedProduct.collection = productItem.data[0].collection;
+    }
+    
+    return normalizedProduct;
   }, [productItem]);
 
   const _id = p?._id;
@@ -45,34 +59,14 @@ export default function ProductDetailsContent({ productItem }) {
                    
   const videoThumbnail = p?.videoThumbnail || null;
   
-  console.log('=== FIELD EXTRACTION DEBUG ===');
-  console.log('p?.image3:', p?.image3);
-  console.log('p?.videourl:', p?.videourl);
-  console.log('p?.video:', p?.video);
-  console.log('Trying raw productItem.data[0]?.image3:', Array.isArray(productItem?.data) ? productItem.data[0]?.image3 : 'N/A');
-  console.log('Trying raw productItem.data[0]?.videourl:', Array.isArray(productItem?.data) ? productItem.data[0]?.videourl : 'N/A');
-  console.log('Final extracted image3:', image3);
-  console.log('Final extracted videourl:', videourl);
-
   const status = p?.status;
-  const groupcodeId = p?.groupcode?._id || p?.groupcodeId || null;
+  const collectionId = p?.collectionId || p?.collection?.id || null;
   
-  // ✅ Fetch group code data
-  const { groupCodeData, loading: groupCodeLoading, error: groupCodeError } = useGroupCodeData(groupcodeId);
+  // Note: Group code functionality has been replaced with collection-based approach
+  // const { groupCodeData, loading: groupCodeLoading, error: groupCodeError } = useGroupCodeData(collectionId);
   
-  console.log('=== PRODUCT DATA NORMALIZATION DEBUG ===');
-  console.log('Raw productItem:', productItem);
-  console.log('Normalized product data (p):', p);
-  console.log('Extracted values:', { 
-    image1: p?.image1, 
-    image2: p?.image2, 
-    image3: p?.image3, 
-    videourl: p?.videourl,
-    video: p?.video 
-  });
-  console.log('Group code ID:', groupcodeId);
-  console.log('Group code data:', groupCodeData);
-
+  const collectionData = p?.collection || null;
+  
   // ✅ active image (start from image1 for best UX)
   const [activeImg, setActiveImg] = useState(image1 || img || null);
   useEffect(() => {
@@ -115,8 +109,8 @@ export default function ProductDetailsContent({ productItem }) {
                 // ✅ PASS REAL product object (not wrapper)
                 apiImages={p}
                 
-                // ✅ PASS group code data
-                groupCodeData={groupCodeData}
+                // ✅ PASS collection data as groupCodeData for compatibility
+                groupCodeData={collectionData}
 
                 // ✅ control main image properly
                 activeImg={activeImg}
@@ -176,7 +170,7 @@ export default function ProductDetailsContent({ productItem }) {
             </div>
           </div>
           <div className="row">
-            <RelatedProducts id={_id} groupcodeId={groupcodeId} />
+            <RelatedProducts id={_id} collectionId={collectionId} />
           </div>
         </div>
       </section>

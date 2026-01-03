@@ -76,6 +76,22 @@ function absoluteUrlFromAnything(src) {
 function getItemImage(item) {
   const p = item?.product || item;
 
+  // First check for Cloudinary URLs (direct URLs)
+  const cloudinaryFields = [
+    p?.image1CloudUrl, p?.image2CloudUrl, p?.image3CloudUrl,
+    p?.imageCloudUrl, p?.cloudUrl
+  ];
+
+  for (const field of cloudinaryFields) {
+    if (field && typeof field === 'string' && field.trim() && field !== 'null' && field !== 'undefined') {
+      const cleanUrl = field.trim();
+      if (cleanUrl.startsWith('http')) {
+        return cleanUrl;
+      }
+    }
+  }
+
+  // Then check for other image fields
   const imageFields = [
     p?.image1, p?.image2, p?.image3, p?.img, p?.image,
     p?.images, p?.thumbnail, p?.cover, p?.photo, p?.picture, p?.media

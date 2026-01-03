@@ -78,6 +78,40 @@ export const apiSlice = createApi({
       },
     }),
 
+    // New field-based filter endpoints
+    getFieldValues: builder.query({
+      query: (fieldName) => ({
+        url: `product/fieldname/${fieldName}`,
+        method: "GET",
+      }),
+      providesTags: (_result, _err, fieldName) => [
+        { type: "FieldValues", id: fieldName }
+      ],
+      // Force fresh data on every request during development
+      keepUnusedDataFor: 0,
+    }),
+
+    getProductsByFieldValue: builder.query({
+      query: ({ fieldName, value }) => ({
+        url: `product/fieldname/${fieldName}/${encodeURIComponent(value)}`,
+        method: "GET",
+      }),
+      providesTags: (_result, _err, { fieldName, value }) => [
+        { type: "ProductsByField", id: `${fieldName}-${value}` }
+      ],
+    }),
+
+    // New endpoint for getting product by slug
+    getProductBySlug: builder.query({
+      query: (slug) => ({
+        url: `product/fieldname/productslug/${slug}`,
+        method: "GET",
+      }),
+      providesTags: (_result, _err, slug) => [
+        { type: "ProductBySlug", id: slug }
+      ],
+    }),
+
     // ...other endpoints (unchanged)
   }),
 
@@ -114,7 +148,10 @@ export const apiSlice = createApi({
     "Cart",
     "ContactDraft",
     "Author",
+    "FieldValues",
+    "ProductsByField",
+    "ProductBySlug",
   ],
 });
 
-export const { useGetFilterOptionsQuery } = apiSlice;
+export const { useGetFilterOptionsQuery, useGetFieldValuesQuery, useGetProductsByFieldValueQuery, useGetProductBySlugQuery } = apiSlice;

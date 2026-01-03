@@ -177,8 +177,8 @@ export default function ProductModal() {
             handleImageActive={handleImageActive}
             /* pass full product object for all image fields */
             apiImages={productItem}
-            /* pass group code data for additional media */
-            groupCodeData={productItem?.groupcode}
+            /* pass collection data as groupCodeData for compatibility */
+            groupCodeData={productItem?.collection}
             /* explicit media props from backend */
             img={productItem?.img}
             image1={productItem?.image1}

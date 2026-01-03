@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Close } from '@/svg';
 import { toast } from 'react-toastify';
+import { mapProductFields, getContentName, getDesignName, getFinishName, getStructureName, getColorName } from '@/utils/productFieldMapper';
 
 /* cart thunks */
 import { add_to_cart, fetch_cart_products } from '@/redux/features/cartSlice';
@@ -144,13 +145,19 @@ const WishlistItem = ({ product }) => {
     (async () => {
       if (!_id) return;
 
+      // Use field mapper to check for labels
+      const mappedProduct = mapProductFields(product);
       const hasLabels =
-        product?.content?.name ||
-        product?.design?.name ||
-        product?.subfinish?.name ||
-        product?.substructure?.name ||
-        (Array.isArray(product?.color) && product.color[0]?.name) ||
-        product?.product?.content?.name;
+        mappedProduct?.contentName ||
+        mappedProduct?.design ||
+        mappedProduct?.finishName ||
+        mappedProduct?.structure ||
+        mappedProduct?.colorName ||
+        getContentName(product?.product) ||
+        getDesignName(product?.product) ||
+        getFinishName(product?.product) ||
+        getStructureName(product?.product) ||
+        getColorName(product?.product);
 
       if (hasLabels) return;
 

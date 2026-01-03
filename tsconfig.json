@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
@@ -13,13 +17,33 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@assets/*": ["public/assets/*"]
-    }
+      "@/*": [
+        "src/*"
+      ],
+      "@assets/*": [
+        "public/assets/*"
+      ]
+    },
+    "strictNullChecks": true
   },
-  "include": ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx", "src/layout/headers/header-2.tsx", "src/components/cart-wishlist/wishlist-item.jsx", "src/app/page.jsx", "src/layout/headers/header-2.jsx"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "src/layout/headers/header-2.tsx",
+    "src/components/cart-wishlist/wishlist-item.jsx",
+    "src/app/page.jsx",
+    "src/layout/headers/header-2.jsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

@@ -9,6 +9,10 @@
 @import 'node_modules/react-modal-video/scss/modal-video.scss';
 @import '../../public/assets/scss/main.scss';
 
+/* ✅ Better UI fonts for shop (safe, clean) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+
 /* ===========================
    Brand Tokens (GLOBAL)
    Edit these to re-theme site
@@ -42,9 +46,9 @@
   --tp-theme-green: #1E824C;
   --tp-green-dark:  #10603B;
 
-  /* Fonts (tokens) */
-  --tp-ff-jost:   'Poppins','Jost',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; /* display */
-  --tp-ff-roboto: 'Hind','Jost',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;    /* body */
+  /* ✅ Fonts (tokens) */
+  --tp-ff-jost:   'Poppins','Jost',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; /* headings/display */
+  --tp-ff-roboto: 'Inter','Hind','Jost',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; /* body/UI */
 
   /* Layout helpers */
   --header-offset: var(--tp-header-height, 88px);
@@ -87,14 +91,17 @@
   font-display: swap;
 }
 
-/* Base font-family: use body token (Hind fallback to Jost) */
+/* ✅ Base font-family: use UI/body token */
 body {
   font-family: var(--tp-ff-roboto);
   color: var(--tp-text-1);
   background: var(--tp-common-white);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
 }
 
-/* Headings default to display token (Poppins) */
+/* Headings default to display token (Poppins/Jost) */
 h1,h2,h3,h4,h5,h6{
   font-family: var(--tp-ff-jost);
   color: var(--tp-text-1);
@@ -227,7 +234,6 @@ h1,h2,h3,h4,h5,h6{
 /* ===========================
    Header Dropdown Overflow Fix
    =========================== */
-/* Ensure header dropdowns can overflow outside header containers */
 .tp-header-area,
 .tp-header-top,
 .tp-header-bottom-2,
@@ -257,14 +263,12 @@ h1,h2,h3,h4,h5,h6{
   overscroll-behavior: contain;
   padding-right: .5rem; /* space near scrollbar */
 }
-/* nicer scrollbars (optional) */
 .sticky-filter::-webkit-scrollbar{ width:8px; }
 .sticky-filter::-webkit-scrollbar-track{ background:transparent; }
 .sticky-filter::-webkit-scrollbar-thumb{ background: #d5d5d5; border-radius:8px; }
 .sticky-filter:hover::-webkit-scrollbar-thumb{ background:#c0c0c0; }
 .sticky-filter{ scrollbar-width:thin; scrollbar-color:#d5d5d5 transparent; }
 
-/* mobile: disable sticky */
 @media (max-width: 991.98px){
   .sticky-filter{
     position: static;
@@ -272,6 +276,7 @@ h1,h2,h3,h4,h5,h6{
     overflow: visible;
   }
 }
+
 .tp-btn-reset {
   background-color: var(--tp-theme-primary);
   color: var(--tp-common-white);
@@ -284,6 +289,7 @@ h1,h2,h3,h4,h5,h6{
     color: var(--tp-theme-primary);
   }
 }
+
 /* Load More – colors only */
 .load-more-btn {
   background: var(--tp-theme-primary);
@@ -293,11 +299,10 @@ h1,h2,h3,h4,h5,h6{
 }
 .load-more-btn:hover {
   background-color: var(--tp-common-white);
-    border-color: var(--tp-theme-primary);
-    color: var(--tp-theme-primary);
+  border-color: var(--tp-theme-primary);
+  color: var(--tp-theme-primary);
 }
 
-/* Dark theme: keep same brand colors (optional) */
 .theme-dark .load-more-btn {
   background: var(--tp-theme-primary);
   color: var(--tp-common-white);
@@ -305,93 +310,85 @@ h1,h2,h3,h4,h5,h6{
 }
 .theme-dark .load-more-btn:hover {
   background-color: var(--tp-common-white);
-    border-color: var(--tp-theme-primary);
-    color: var(--tp-theme-primary);
+  border-color: var(--tp-theme-primary);
+  color: var(--tp-theme-primary);
 }
+
 /* Mobile filter button – colors only */
 .shop-toolbar__filter .tp-filter-btn {
-  background: var(--tp-theme-primary); /* was var(--tp-theme-1); now brand primary */
+  background: var(--tp-theme-primary);
   color: var(--tp-common-white);
   border: 1px solid var(--tp-theme-primary);
   transition: color .2s ease, background-color .2s ease, border-color .2s ease;
 }
 .shop-toolbar__filter .tp-filter-btn:hover {
   background-color: var(--tp-common-white);
-    border-color: var(--tp-theme-primary);
-    color: var(--tp-theme-primary);
+  border-color: var(--tp-theme-primary);
+  color: var(--tp-theme-primary);
 }
 
-/* Dark theme (optional): same brand colors */
 .theme-dark .shop-toolbar__filter .tp-filter-btn {
   background: var(--tp-theme-primary);
   color: var(--tp-common-white);
   border-color: var(--tp-theme-primary);
 }
 .theme-dark .shop-toolbar__filter .tp-filter-btn:hover {
-   background-color: var(--tp-common-white);
-    border-color: var(--tp-theme-primary);
-    color: var(--tp-theme-primary);
+  background-color: var(--tp-common-white);
+  border-color: var(--tp-theme-primary);
+  color: var(--tp-theme-primary);
 }
-/* BLOG: force equal image size like template, and show full image */
+
+/* BLOG */
 .blog-card { border-radius: 10px; overflow: hidden; }
 .blog-card__thumb{
   position: relative;
   width: 100%;
-  /* same visual ratio as template card */
-  aspect-ratio: 16 / 10;  /* tweak to 16/9 if you prefer */
-  background: #f6f8fb;    /* soft backdrop while loading */
+  aspect-ratio: 16 / 10;
+  background: #f6f8fb;
   border-radius: 10px;
   overflow: hidden;
 }
 .blog-card__img{
-  object-fit: contain !important; /* show the whole photo */
+  object-fit: contain !important;
   object-position: center;
 }
+
 .tp-profile-avatar {
   display: block;
   position: relative;
   overflow: hidden;
-  margin: 0 auto; // centers it
+  margin: 0 auto;
 }
-
-/* OVAL (like your screenshot) */
 .tp-profile-avatar--oval {
   width: 180px;
   height: 180px;
 }
-
-/* If you want CIRCLE instead, use this class */
 .tp-profile-avatar--circle {
   width: 180px;
   height: 180px;
   border-radius: 50%;
 }
-
 .tp-profile-avatar__img {
   object-fit: cover;
   object-position: center;
 }
+
 @media (min-width: 769px) {
   .pdw-modal-overlay {
-    padding: 60px 20px !important; /* Add top/bottom padding on desktop */
+    padding: 60px 20px !important;
   }
-  
   .pdw-modal-content {
-    height: calc(100vh - 120px) !important; /* Adjust for padding */
+    height: calc(100vh - 120px) !important;
   }
 }
 
 @media (max-width: 768px) {
-  /* Completely hide image modal on mobile/tablet */
   .pdw-modal-overlay {
     display: none !important;
   }
-  
-  /* Remove clickable cursor on mobile */
   .pdw-main-inner {
     cursor: default !important;
   }
-  
   .pdw-main-inner:hover {
     transform: none !important;
   }

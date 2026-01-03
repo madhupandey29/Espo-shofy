@@ -8,6 +8,7 @@ import { handleProductModal } from "@/redux/features/productModalSlice";
 import { add_to_cart, fetch_cart_products, openCartMini } from "@/redux/features/cartSlice";
 import { add_to_wishlist } from "@/redux/features/wishlist-slice";
 import { add_to_compare } from "@/redux/features/compareSlice";
+import { mapProductFields, getStructureName, getContentName, getFinishName } from "@/utils/productFieldMapper";
 
 import { useGetSubstructureQuery } from "@/redux/features/substructureApi";
 import { useGetContentByIdQuery } from "@/redux/features/contentApi";
@@ -72,7 +73,29 @@ const ShopListItem = ({ product }) => {
 
   const getImageUrl = (imageLike) => {
     if (!imageLike) return "/assets/img/product/default-product-img.jpg";
+    
     try {
+      // First check if it's already a complete Cloudinary URL
+      if (typeof imageLike === "string" && imageLike.startsWith("https://res.cloudinary.com")) {
+        return imageLike;
+      }
+
+      // Check for Cloudinary URLs in the product object
+      const p = product?.product || product;
+      const cloudinaryFields = [
+        p?.image1CloudUrl, p?.image2CloudUrl, p?.image3CloudUrl,
+        p?.imageCloudUrl, p?.cloudUrl
+      ];
+
+      for (const field of cloudinaryFields) {
+        if (field && typeof field === 'string' && field.trim() && field !== 'null' && field !== 'undefined') {
+          const cleanUrl = field.trim();
+          if (cleanUrl.startsWith('http')) {
+            return cleanUrl;
+          }
+        }
+      }
+
       const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
       if (typeof imageLike === "string" && imageLike.startsWith("[object Object]"))
         return "/assets/img/product/default-product-img.jpg";

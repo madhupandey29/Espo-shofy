@@ -55,9 +55,13 @@ const useGroupCodeData = (groupcodeId) => {
           json = await fetchJson(`${API_BASE}/groupcode`);
           console.log('Group code list response:', json);
           
-          if (json?.data && Array.isArray(json.data)) {
-            // Find the matching groupcode by ID
-            data = json.data.find(item => item._id === groupcodeId) || null;
+          // Handle both old and new API structures
+          const groupcodes = json?.data || json?.groupcodes || [];
+          if (Array.isArray(groupcodes)) {
+            // Find the matching groupcode by ID (handle both _id and id)
+            data = groupcodes.find(item => 
+              item._id === groupcodeId || item.id === groupcodeId
+            ) || null;
             console.log('Found matching groupcode:', data);
           }
         }

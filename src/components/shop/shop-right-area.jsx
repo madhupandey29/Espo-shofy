@@ -1,46 +1,20 @@
 import React, { useMemo, useState } from "react";
 import Pagination from "@/ui/Pagination";
 import ProductItem from "../products/fashion/product-item";
-import CategoryFilter from "./shop-filter/category-filter";
-import ColorFilter from "./shop-filter/color-filter";
-import StructureFilter from "./shop-filter/structure-filter";
-// import PriceFilter from "./shop-filter/price-filter";
-// import StatusFilter from "./shop-filter/status-filter";
 import ShopListItem from "./shop-list-item";
 import ShopTopLeft from "./shop-top-left";
 import ShopTopRight from "./shop-top-right";
 import ResetButton from "./shop-filter/reset-button";
-import { useGetFilterOptionsQuery } from "@/redux/api/apiSlice";
+import EnhancedShopSidebarFilters from "./EnhancedShopSidebarFilters";
 
 // --- helpers ---------------------------------------------------------------
-const getOptions = (d) => {
-  if (Array.isArray(d)) return d;
-  if (!d) return [];
-  if (Array.isArray(d.data)) return d.data;
-  if (Array.isArray(d.results)) return d.results;
-  if (Array.isArray(d.items)) return d.items;
-  if (Array.isArray(d.docs)) return d.docs;
-  if (Array.isArray(d.payload)) return d.payload;
-  return [];
-};
-
-const toMap = (data) => {
-  const m = new Map();
-  getOptions(data).forEach((o) => {
-    const id = String(o._id ?? o.id ?? o.value ?? o.slug ?? o.name);
-    const nm = o.name ?? o.label ?? o.title ?? o.parent ?? id;
-    m.set(id, nm);
-  });
-  return m;
-};
-
 const toArr = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
 const titleize = (k) =>
   k === "substructure" ? "Sub-structure" :
   k === "subfinish"    ? "Sub-finish"    :
   k === "subsuitable"  ? "Sub-suitable"  :
   k === "motifsize"    ? "Motif Size"    :
-  k === "groupcode"    ? "Group Code"    :
+  k === "collectionId" ? "Collection"    :
   k.replace(/[_-]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 
 // --------------------------------------------------------------------------
@@ -79,76 +53,7 @@ const ShopRightArea = ({ all_products, products, otherProps, right_side }) => {
   const facetsActive = facetEntries.some(([, v]) => toArr(v).length > 0);
   const anyActive = !!(priceActive || facetsActive);
 
-  // ---- ALWAYS fetch option lists (top-level hooks; no loops/conditions)
-  const qCategory     = useGetFilterOptionsQuery("category/");
-  const qColor        = useGetFilterOptionsQuery("color/");
-  const qContent      = useGetFilterOptionsQuery("content/");
-  const qDesign       = useGetFilterOptionsQuery("design/");
-  const qStructure    = useGetFilterOptionsQuery("substructure/");
-  const qSubStructure = useGetFilterOptionsQuery("substructure/");
-  const qFinish       = useGetFilterOptionsQuery("subfinish/");
-  const qSubFinish    = useGetFilterOptionsQuery("subfinish/");
-  const qGroupcode    = useGetFilterOptionsQuery("groupcode/");
-  const qVendor       = useGetFilterOptionsQuery("vendor/");
-  const qSuitableFor  = useGetFilterOptionsQuery("subsuitable/");
-  const qSubSuitable  = useGetFilterOptionsQuery("subsuitable/");
-  const qMotif        = useGetFilterOptionsQuery("motif/");
-
-  // ---- build maps
-  const mapCategory     = useMemo(() => toMap(qCategory.data),     [qCategory.data]);
-  const mapColor        = useMemo(() => toMap(qColor.data),        [qColor.data]);
-  const mapContent      = useMemo(() => toMap(qContent.data),      [qContent.data]);
-  const mapDesign       = useMemo(() => toMap(qDesign.data),       [qDesign.data]);
-  const mapStructure    = useMemo(() => toMap(qStructure.data),    [qStructure.data]);
-  const mapSubStructure = useMemo(() => toMap(qSubStructure.data), [qSubStructure.data]);
-  const mapFinish       = useMemo(() => toMap(qFinish.data),       [qFinish.data]);
-  const mapSubFinish    = useMemo(() => toMap(qSubFinish.data),    [qSubFinish.data]);
-  const mapGroupcode    = useMemo(() => toMap(qGroupcode.data),    [qGroupcode.data]);
-  const mapVendor       = useMemo(() => toMap(qVendor.data),       [qVendor.data]);
-  const mapSuitable     = useMemo(() => toMap(qSuitableFor.data),  [qSuitableFor.data]);
-  const mapSubSuitable  = useMemo(() => toMap(qSubSuitable.data),  [qSubSuitable.data]);
-  const mapMotif        = useMemo(() => toMap(qMotif.data),        [qMotif.data]);
-
-  // ---- label resolvers
-  const mapsByKey = {
-    category: mapCategory,
-    color: mapColor,
-    content: mapContent,
-    design: mapDesign,
-    structure: mapStructure,
-    substructure: mapSubStructure,
-    finish: mapFinish,
-    subfinish: mapSubFinish,
-    groupcode: mapGroupcode,
-    vendor: mapVendor,
-    suitablefor: mapSuitable,
-    subsuitable: mapSubSuitable,
-    motifsize: mapMotif,
-  };
-
-  // read from the cache first (sent by sidebar)
-  const labelFromCache = (key, id) =>
-    selectedFilters?.__labels?.[key]?.[String(id)] || null;
-
-  // fallback: search ALL maps if the expected map doesn't have this id
-  const labelFallback = (id) => {
-    const key = String(id);
-    for (const m of Object.values(mapsByKey)) {
-      if (m && m.has(key)) return m.get(key);
-    }
-    return key;
-  };
-
-  const labelFor = (key, id) => {
-    const cached = labelFromCache(key, id);
-    if (cached) return cached;
-    const v = String(id);
-    const m = mapsByKey[key];
-    if (m && m.has(v)) return m.get(v);
-    return labelFallback(v);
-  };
-
-  // ---- chips
+  // ---- chips (simplified without complex mapping)
   const chips = [];
   if (priceActive) chips.push({ key: "__price__", label: `Price: ${pv[0]}–${pv[1]}` });
 
@@ -158,7 +63,7 @@ const ShopRightArea = ({ all_products, products, otherProps, right_side }) => {
       chips.push({
         key,
         value: String(v),
-        label: `${titleize(key)}: ${labelFor(key, v)}`
+        label: `${titleize(key)}: ${v}` // Use the value directly since we don't have complex mapping
       });
     });
   });
@@ -176,19 +81,10 @@ const ShopRightArea = ({ all_products, products, otherProps, right_side }) => {
     }
     const next = { ...(selectedFilters || {}) };
 
-    // ids
+    // Remove the value from the array
     const arr = toArr(next[key]).filter((x) => String(x) !== String(val));
     if (arr.length) next[key] = arr;
     else delete next[key];
-
-    // labels cache
-    if (next.__labels?.[key]) {
-      const copy = { ...next.__labels[key] };
-      delete copy[String(val)];
-      const newLabels = { ...next.__labels, [key]: copy };
-      if (!Object.keys(copy).length) delete newLabels[key];
-      next.__labels = Object.keys(newLabels).length ? newLabels : undefined;
-    }
 
     handleFilterChange?.(next);
   };
@@ -326,12 +222,18 @@ const ShopRightArea = ({ all_products, products, otherProps, right_side }) => {
                 </div>
               )}
 
-              {/* filter blocks */}
+              {/* Enhanced filter blocks using new API */}
+              <EnhancedShopSidebarFilters
+                selected={selectedFilters}
+                onFilterChange={handleFilterChange}
+              />
+
+              {/* Legacy filter blocks - can be removed once fully migrated */}
               {/* <PriceFilter priceFilterValues={priceFilterValues} maxPrice={maxPrice} /> */}
               {/* <StatusFilter setCurrPage={setCurrPage} shop_right={right_side} /> */}
-              <CategoryFilter setCurrPage={setCurrPage} shop_right={right_side} />
+              {/* <CategoryFilter setCurrPage={setCurrPage} shop_right={right_side} />
               <ColorFilter setCurrPage={setCurrPage} shop_right={right_side} />
-              <StructureFilter setCurrPage={setCurrPage} shop_right={right_side} />
+              <StructureFilter setCurrPage={setCurrPage} shop_right={right_side} /> */}
             </div>
           </div>
         </div>
