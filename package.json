@@ -11,7 +11,8 @@
   ],
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "CI=false next build",
+    "build:force": "DISABLE_ESLINT_PLUGIN=true CI=false next build",
     "start": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",

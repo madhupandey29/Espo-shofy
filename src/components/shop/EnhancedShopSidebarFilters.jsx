@@ -15,6 +15,8 @@ const FIELD_FILTERS = [
   { key: 'motif', label: 'MOTIF', searchable: true, limit: 8 },
 ];
 
+export const FIELD_FILTERS_MAP = Object.fromEntries(FIELD_FILTERS.map((f) => [f.key, f]));
+
 const UI = {
   pink: 'var(--tp-theme-primary)',
   text: 'var(--tp-text-1)',
